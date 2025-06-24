@@ -57,4 +57,11 @@ class User extends Authenticatable
     }
 
     public function topups() { return $this->hasMany(Topup::class); }
+
+    public function conversations() { return $this->hasMany(Conversation::class); }
+
+    public function favorites()
+    {
+        return $this->belongsToMany(Babysitter::class, 'favorites');
+    }
 }

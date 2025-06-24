@@ -28,4 +28,6 @@ class Babysitter extends Model
     public function bookings() {
         return $this->hasMany(Booking::class);
     }
+
+    public function conversations() { return $this->hasMany(Conversation::class); }
 }
