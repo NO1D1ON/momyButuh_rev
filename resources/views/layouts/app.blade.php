@@ -19,6 +19,7 @@
     
     {{-- CDN Flowbite untuk interaktivitas komponen (dropdown, sidebar mobile) --}}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
 </head>
 <body class="bg-pink-100/60 backdrop-blur-lg">
 

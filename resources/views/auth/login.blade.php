@@ -22,6 +22,7 @@
       }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
 </head>
 <body class="bg-gradient-to-br from-pink-100 via-pink-200 to-pink-300">
     <div class="relative flex items-center justify-center min-h-screen overflow-hidden">
@@ -34,7 +35,7 @@
             
             {{-- Logo --}}
             <div class="flex justify-center">
-                <img class="h-16 w-auto" src="https://raw.githubusercontent.com/user-attachments/assets/95a79407-1698-4b71-9257-797960339d1b" alt="MomyButuh Logo">
+                <img src="{{ asset('images/logo.png') }}" class="h-6 me-6 sm:h-9" alt="MomyButuh Logo" />
             </div>
             
             <h2 class="text-3xl font-bold text-center text-gray-800">
