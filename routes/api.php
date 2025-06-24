@@ -43,4 +43,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/favorites', [FavoriteController::class, 'index']);
     Route::post('/favorites/{babysitter}', [FavoriteController::class, 'toggle']);
+    Route::get('/conversation/with/{babysitter}', [MessageController::class, 'getOrCreateConversation']);
 });

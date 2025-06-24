@@ -8,7 +8,7 @@
 
     <div class="overflow-x-auto bg-white rounded-lg shadow">
         <table class="w-full text-sm text-left text-gray-500">
-            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+            <thead class="text-xs text-gray-700 uppercase bg-[#f76eb0]">
                 <tr>
                     <th scope="col" class="px-6 py-3">ID</th>
                     <th scope="col" class="px-6 py-3">Orang Tua</th>
@@ -20,7 +20,7 @@
             </thead>
             <tbody>
                 @forelse ($bookings as $booking)
-                <tr class="bg-white border-b hover:bg-gray-50">
+                <tr class= "border-pink-200 hover:bg-pink-200">
                     <td class="px-6 py-4 font-mono text-xs">#{{ $booking->id }}</td>
                     <td class="px-6 py-4 font-medium text-gray-900">{{ $booking->user->name }}</td>
                     <td class="px-6 py-4 font-medium text-gray-900">{{ $booking->babysitter->name }}</td>

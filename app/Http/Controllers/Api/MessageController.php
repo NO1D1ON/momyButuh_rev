@@ -59,4 +59,21 @@ class MessageController extends Controller
 
         return response()->json($message, 201);
     }
+
+    public function getOrCreateConversation(Request $request, Babysitter $babysitter)
+    {
+        $user = $request->user();
+
+        $conversation = Conversation::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'babysitter_id' => $babysitter->id,
+            ]
+        );
+
+        // Muat pesan-pesan yang ada di dalam percakapan ini
+        $conversation->load('messages');
+
+        return response()->json($conversation);
+    }
 }

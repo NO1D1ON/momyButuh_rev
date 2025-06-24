@@ -6,14 +6,14 @@
 <div class="p-4 sm:p-0">
     <div class="flex justify-between items-center mb-4">
         <h1 class="text-2xl font-bold text-gray-800">Manajemen Babysitter</h1>
-        <a href="{{ route('babysitters.create') }}" class="inline-block px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">
+        <a href="{{ route('babysitters.create') }}" class="inline-block px-4 py-2 text-sm font-medium text-white rounded-lg bg-[#F564A9] hover:bg-[#E9559F]">
             + Tambah Babysitter
         </a>
     </div>
 
-    <div class="overflow-x-auto bg-white rounded-lg shadow">
-        <table class="w-full text-sm text-left text-gray-500">
-            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+    <div class="overflow-x-auto rounded-lg shadow">
+        <table class="w-full text-sm text-left text-gray-700">
+            <thead class="text-xs uppercase bg-[#f76eb0]">
                 <tr>
                     <th scope="col" class="px-6 py-3">Nama</th>
                     <th scope="col" class="px-6 py-3">Email</th>
@@ -22,9 +22,9 @@
                     <th scope="col" class="px-6 py-3">Aksi</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="bg-gray-50">
                 @forelse ($babysitters as $babysitter)
-                <tr class="bg-white border-b hover:bg-gray-50">
+                <tr class="border-b hover:bg-[#fcddec]">
                     <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
                         {{ $babysitter->name }}
                     </th>

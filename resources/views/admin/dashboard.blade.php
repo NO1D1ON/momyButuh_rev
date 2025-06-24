@@ -3,9 +3,11 @@
 @section('title', 'Dashboard')
 
 @section('content')
-    <div class="p-4 border-2 border-gray-200 border-dashed rounded-lg dark:border-gray-700">
-        <div class="p-6 bg-white rounded-lg shadow">
-            <h1 class="text-2xl font-bold text-gray-900">
+    {{-- Kontainer luar disederhanakan, border putus-putus dihilangkan --}}
+    <div class="p-4">
+        {{-- Card ucapan selamat datang dengan latar belakang pink pudar --}}
+        <div class="p-6 bg-[#ffdeef] rounded-xl shadow-md">
+            <h1 class="text-2xl font-bold text-gray-800">
                 Dashboard Admin
             </h1>
             <p class="mt-2 text-gray-600">

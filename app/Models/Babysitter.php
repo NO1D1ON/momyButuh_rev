@@ -30,4 +30,9 @@ class Babysitter extends Model
     }
 
     public function conversations() { return $this->hasMany(Conversation::class); }
+
+    public function messages()
+    {
+        return $this->morphMany(Message::class, 'sender');
+    }
 }

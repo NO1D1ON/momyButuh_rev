@@ -64,4 +64,9 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Babysitter::class, 'favorites');
     }
+
+    public function messages()
+    {
+        return $this->morphMany(Message::class, 'sender');
+    }
 }
