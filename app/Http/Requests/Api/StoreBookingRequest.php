@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Rules\TimeAfter;
 
 class StoreBookingRequest extends FormRequest
 {
@@ -23,10 +24,11 @@ class StoreBookingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'babysitter_id' => 'required|exists:babysitters,id', // Pastikan babysitter ada di database
+            'babysitter_id' => 'required|exists:babysitters,id',
             'booking_date' => 'required|date|after_or_equal:today',
             'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
+            // --- UBAH ATURAN INI ---
+            'end_time' => ['required', 'date_format:H:i', new TimeAfter($this->start_time)],
         ];
     }
 }

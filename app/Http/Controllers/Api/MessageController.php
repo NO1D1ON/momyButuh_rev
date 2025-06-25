@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Babysitter;
 use App\Models\Conversation;
+use App\Models\Message; // Pastikan Message di-import
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class MessageController extends Controller
 {
@@ -33,38 +36,15 @@ class MessageController extends Controller
     }
 
     // Mengirim pesan baru
-    public function store(Request $request)
-        {
-            $request->validate([
-                'babysitter_id' => 'required|exists:babysitters,id',
-                'body' => 'required|string',
-            ]);
+    public function getOrCreateConversation(Request $request, $babysitterId)
+    {
+        // Cari babysitter secara manual untuk kontrol error yang lebih baik
+        $babysitter = Babysitter::find($babysitterId);
 
-            $user = Auth::user(); // Gunakan Auth::user() untuk kepastian
-
-            // Cari atau buat percakapan baru
-            $conversation = Conversation::firstOrCreate(
-                [
-                    'user_id' => $user->id,
-                    'babysitter_id' => $request->babysitter_id,
-                ]
-            );
-
-            // Buat pesan baru
-            $message = $conversation->messages()->create([
-                'sender_id' => $user->id,
-                'sender_type' => get_class($user),
-                'body' => $request->body,
-            ]);
-
-            // Muat relasi pengirim untuk dikembalikan sebagai response
-            $message->load('sender');
-
-            return response()->json($message, 201);
+        if (!$babysitter) {
+            return response()->json(['message' => 'Babysitter tidak ditemukan.'], 404);
         }
 
-    public function getOrCreateConversation(Request $request, Babysitter $babysitter)
-    {
         $user = $request->user();
 
         $conversation = Conversation::firstOrCreate(
@@ -74,9 +54,33 @@ class MessageController extends Controller
             ]
         );
 
-        // Muat pesan-pesan yang ada di dalam percakapan ini
         $conversation->load('messages');
 
         return response()->json($conversation);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'babysitter_id' => 'required|exists:babysitters,id',
+            'body' => 'required|string|max:1000',
+        ]);
+
+        $user = Auth::user();
+
+        $conversation = Conversation::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'babysitter_id' => $validated['babysitter_id'],
+            ]
+        );
+
+        $message = $conversation->messages()->create([
+            'sender_id' => $user->id,
+            'sender_type' => get_class($user),
+            'body' => $validated['body'],
+        ]);
+
+        return response()->json($message, 201);
     }
 }
