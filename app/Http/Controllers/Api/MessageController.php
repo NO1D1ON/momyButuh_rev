@@ -34,31 +34,34 @@ class MessageController extends Controller
 
     // Mengirim pesan baru
     public function store(Request $request)
-    {
-        $request->validate([
-            'babysitter_id' => 'required|exists:babysitters,id',
-            'body' => 'required|string',
-        ]);
+        {
+            $request->validate([
+                'babysitter_id' => 'required|exists:babysitters,id',
+                'body' => 'required|string',
+            ]);
 
-        $user = $request->user();
+            $user = Auth::user(); // Gunakan Auth::user() untuk kepastian
 
-        // Cari atau buat percakapan baru antara user dan babysitter
-        $conversation = Conversation::firstOrCreate([
-            'user_id' => $user->id,
-            'babysitter_id' => $request->babysitter_id,
-        ]);
+            // Cari atau buat percakapan baru
+            $conversation = Conversation::firstOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'babysitter_id' => $request->babysitter_id,
+                ]
+            );
 
-        // Buat pesan baru
-        $message = $conversation->messages()->create([
-            'sender_id' => $user->id,
-            'sender_type' => get_class($user), // 'App\Models\User'
-            'body' => $request->body,
-        ]);
+            // Buat pesan baru
+            $message = $conversation->messages()->create([
+                'sender_id' => $user->id,
+                'sender_type' => get_class($user),
+                'body' => $request->body,
+            ]);
 
-        broadcast(new MessageSent($message))->toOthers();
+            // Muat relasi pengirim untuk dikembalikan sebagai response
+            $message->load('sender');
 
-        return response()->json($message, 201);
-    }
+            return response()->json($message, 201);
+        }
 
     public function getOrCreateConversation(Request $request, Babysitter $babysitter)
     {

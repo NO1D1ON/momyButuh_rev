@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\TopupController;
 use App\Http\Controllers\Api\MessageController; 
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\FavoriteController;
+use App\Http\Controllers\Api\BookingController;
 
 // Rute Publik (tidak perlu login)
 Route::post('/register', [AuthController::class, 'register']);
