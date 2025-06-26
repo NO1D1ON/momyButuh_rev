@@ -24,6 +24,22 @@ class BookingController extends Controller
         $startTime = Carbon::parse($validated['booking_date'] . ' ' . $validated['start_time']);
         $endTime = Carbon::parse($validated['booking_date'] . ' ' . $validated['end_time']);
 
+        $existingBooking = Booking::where('babysitter_id', $babysitter->id)
+        ->where('booking_date', $validated['booking_date'])
+        ->where(function ($query) use ($startTime, $endTime) {
+            $query->where(function ($q) use ($startTime, $endTime) {
+                // Cek jika waktu mulai baru berada di antara jadwal yang sudah ada
+                $q->where('start_time', '<', $endTime->toTimeString())
+                  ->where('end_time', '>', $startTime->toTimeString());
+            });
+        })
+        ->where('status', 'confirmed') // Hanya cek booking yang sudah dikonfirmasi
+        ->exists(); // Cukup cek apakah ada atau tidak
+
+    if ($existingBooking) {
+        return response()->json(['message' => 'Jadwal babysitter pada tanggal dan jam tersebut sudah terisi.'], 409); // 409 Conflict
+    }
+
         // VALIDASI & PENANGANAN KASUS LEWAT TENGAH MALAM
         if ($startTime->greaterThanOrEqualTo($endTime)) {
             // Jika end_time <= start_time dalam hari yang sama, asumsikan hari berikutnya
@@ -110,5 +126,30 @@ class BookingController extends Controller
         });
 
         return response()->json($formattedBookings);
+    }
+
+    public function complete(Request $request, Booking $booking)
+    {
+        // Otorisasi: Pastikan yang menyelesaikan adalah Orang Tua yang memesan
+        if ($request->user()->id !== $booking->user_id) {
+            return response()->json(['message' => 'Akses tidak diizinkan.'], 403);
+        }
+
+        // Pastikan booking statusnya 'confirmed' sebelum diselesaikan
+        if ($booking->status !== 'confirmed') {
+            return response()->json(['message' => 'Booking ini tidak dapat diselesaikan.'], 422);
+        }
+
+        // Gunakan transaksi database
+        DB::transaction(function () use ($booking) {
+            // 1. Update status booking menjadi 'completed'
+            $booking->status = 'completed';
+            $booking->save();
+
+            // 2. Tambahkan saldo ke babysitter yang bersangkutan
+            $booking->babysitter()->increment('balance', $booking->total_price);
+        });
+
+        return response()->json(['message' => 'Booking telah diselesaikan dan pembayaran telah diteruskan ke babysitter.']);
     }
 }

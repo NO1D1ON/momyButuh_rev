@@ -23,20 +23,25 @@ class TopupController extends Controller
 
     public function approve(Topup $topup)
     {
-        // Pastikan hanya proses topup yang pending
+        // Pastikan hanya memproses topup yang statusnya 'pending'
         if ($topup->status !== 'pending') {
-            return back()->with('error', 'Top up ini sudah diproses sebelumnya.');
+            return back()->with('error', 'Top up ini sudah pernah diproses sebelumnya.');
         }
 
-        // Gunakan transaksi database untuk memastikan konsistensi data
+        // Gunakan transaksi database untuk memastikan data konsisten.
+        // Jika salah satu gagal, semua akan dibatalkan.
         DB::transaction(function () use ($topup) {
             // 1. Update status topup menjadi 'success'
-            $topup->update(['status' => 'success']);
-            // 2. Tambahkan saldo ke user
-            $topup->user->increment('balance', $topup->amount);
+            $topup->status = 'success';
+            $topup->admin_notes = 'Disetujui oleh admin pada ' . now();
+            $topup->save();
+
+            // 2. Tambahkan saldo ke user yang bersangkutan
+            // `increment` adalah cara aman untuk menambah nilai numerik.
+            $topup->user()->increment('balance', $topup->amount);
         });
 
-        return redirect()->route('topups.index')->with('success', 'Top up berhasil disetujui.');
+        return redirect()->route('topups.index')->with('success', 'Top up berhasil disetujui dan saldo pengguna telah ditambahkan.');
     }
 
     public function reject(Request $request, Topup $topup)

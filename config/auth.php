@@ -40,6 +40,18 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users', // Provider default bisa 'users' atau null
+        ],
+        
+        // GUARD UNTUK BABYSITTER
+        'babysitter' => [
+            // Ganti driver dari 'session' menjadi 'sanctum' agar bisa membuat token
+            'driver' => 'sanctum',
+            'provider' => 'babysitters',
+        ],
     ],
 
     /*
@@ -63,6 +75,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\User::class),
+        ],
+
+        'babysitters' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Babysitter::class,
         ],
 
         // 'users' => [
@@ -111,5 +128,6 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
 
 ];

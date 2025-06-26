@@ -6,9 +6,10 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Panggil UserSeeder di sini
+        // Panggil semua seeder yang ingin Anda jalankan di sini
         $this->call([
             UserSeeder::class,
+            BabysitterSeeder::class, // <-- TAMBAHKAN BARIS INI
         ]);
     }
 }

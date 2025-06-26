@@ -26,12 +26,17 @@ class MessageSent implements ShouldBroadcast
     /**
      * Mendapatkan channel tempat event akan disiarkan.
      */
-    public function broadcastOn(): array
+    // public function broadcastOn(): array
+    // {
+    //     // Pesan akan disiarkan ke channel privat yang namanya unik untuk setiap percakapan.
+    //     // Contoh: 'conversation.1', 'conversation.2', dst.
+    //     return [
+    //         new PrivateChannel('conversation.'.$this->message->conversation_id),
+    //     ];
+    // }
+
+    public function broadcastAs(): string
     {
-        // Pesan akan disiarkan ke channel privat yang namanya unik untuk setiap percakapan.
-        // Contoh: 'conversation.1', 'conversation.2', dst.
-        return [
-            new PrivateChannel('conversation.'.$this->message->conversation_id),
-        ];
+        return 'new.message'; // Kita beri nama alias 'new.message'
     }
 }
