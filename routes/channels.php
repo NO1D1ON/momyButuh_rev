@@ -1,16 +1,30 @@
 <?php
 
+use App\Models\Conversation;
 use Illuminate\Support\Facades\Broadcast;
+
+/*
+|--------------------------------------------------------------------------
+| Broadcast Channels
+|--------------------------------------------------------------------------
+*/
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
 
-// LOGIKA BARU UNTUK OTORISASI CHANNEL PERCAKAPAN
+/**
+ * Otorisasi presence channel untuk sebuah percakapan.
+ *
+ * Menggunakan PresenceChannel memungkinkan client untuk mengetahui siapa saja
+ * yang sedang berada di dalam channel yang sama.
+ * Jika otorisasi berhasil, kembalikan array data pengguna.
+ */
 Broadcast::channel('conversation.{conversation}', function ($user, Conversation $conversation) {
-    // Izinkan user untuk mendengarkan channel ini HANYA JIKA
-    // ID user tersebut sama dengan user_id (Orang Tua) ATAU babysitter_id di dalam data percakapan.
-    // Catatan: Karena kita belum membuat login untuk babysitter, untuk saat ini kita hanya cek user_id.
-    return $user->id === $conversation->user_id;
+    // Cek apakah pengguna yang diautentikasi adalah bagian dari percakapan
+    if ($user->id === $conversation->user_id || $user->id === $conversation->babysitter_id) {
+        // Jika berhasil, kembalikan data user untuk presence channel
+        return ['id' => $user->id, 'name' => $user->name];
+    }
+    return false; // Jika tidak, tolak akses
 });
-

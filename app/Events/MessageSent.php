@@ -15,28 +15,67 @@ class MessageSent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    // Kita buat properti publik agar data ini ikut terkirim dalam broadcast
+    /**
+     * Properti publik ini akan otomatis disertakan dalam payload broadcast.
+     * @var \App\Models\Message
+     */
     public $message;
 
+    /**
+     * Buat instance event baru.
+     *
+     * @param \App\Models\Message $message
+     * @return void
+     */
     public function __construct(Message $message)
     {
-        $this->message = $message;
+        // Muat relasi sender agar data nama pengirim ikut terkirim
+        $this->message = $message->load('sender');
     }
 
     /**
-     * Mendapatkan channel tempat event akan disiarkan.
+     * Channel tempat event ini akan disiarkan.
+     * Pesan hanya akan dikirim ke channel percakapan yang spesifik.
+     *
+     * @return array<int, \Illuminate\Broadcasting\Channel>
      */
-    // public function broadcastOn(): array
-    // {
-    //     // Pesan akan disiarkan ke channel privat yang namanya unik untuk setiap percakapan.
-    //     // Contoh: 'conversation.1', 'conversation.2', dst.
-    //     return [
-    //         new PrivateChannel('conversation.'.$this->message->conversation_id),
-    //     ];
-    // }
+    public function broadcastOn(): array
+    {
+        return [
+            new PrivateChannel('conversation.' . $this->message->conversation_id),
+        ];
+    }
 
+    /**
+     * Nama alias untuk event broadcast.
+     * Client akan mendengarkan event dengan nama ini.
+     *
+     * @return string
+     */
     public function broadcastAs(): string
     {
-        return 'new.message'; // Kita beri nama alias 'new.message'
+        return 'new.message';
+    }
+
+    /**
+     * Data (payload) yang akan di-broadcast.
+     *
+     * @return array<string, mixed>
+     */
+    public function broadcastWith(): array
+    {
+        return [
+            'message' => [
+                'id' => $this->message->id,
+                'body' => $this->message->body,
+                'conversation_id' => $this->message->conversation_id,
+                'created_at' => $this->message->created_at->toIso8601String(),
+                'sender' => [
+                    'id' => $this->message->sender->id,
+                    'name' => $this->message->sender->name,
+                    'type' => $this->message->sender_type,
+                ]
+            ]
+        ];
     }
 }

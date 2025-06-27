@@ -41,15 +41,10 @@ return [
             'provider' => 'users',
         ],
 
-        'sanctum' => [
-            'driver' => 'sanctum',
-            'provider' => 'users', // Provider default bisa 'users' atau null
-        ],
-        
         // GUARD UNTUK BABYSITTER
         'babysitter' => [
             // Ganti driver dari 'session' menjadi 'sanctum' agar bisa membuat token
-            'driver' => 'sanctum',
+            'driver' => 'session',
             'provider' => 'babysitters',
         ],
     ],
