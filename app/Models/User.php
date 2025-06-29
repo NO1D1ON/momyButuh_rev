@@ -62,7 +62,7 @@ class User extends Authenticatable
 
     public function favorites()
     {
-        return $this->belongsToMany(Babysitter::class, 'favorites');
+        return $this->belongsToMany(\App\Models\Babysitter::class, 'favorites', 'user_id', 'babysitter_id');
     }
 
     // di dalam class User

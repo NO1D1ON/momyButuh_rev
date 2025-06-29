@@ -66,8 +66,8 @@ class BabysitterController extends Controller
             // Load relasi yang diperlukan
             $babysitter->load([
                 'reviews.user:id,name',
-                'services',
-                'availableSchedules'
+                // 'services',
+                // 'availableSchedules'
             ]);
 
             return response()->json([
@@ -363,19 +363,22 @@ class BabysitterController extends Controller
         }
     }
 
-     public function search(Request $request)
+    public function search(Request $request)
     {
         // 1. Validasi input: pastikan ada kata kunci pencarian
         $request->validate([
-            'name' => 'required|string|min:2'
+            'keyword' => 'required|string|min:2'
         ]);
 
-        $keyword = $request->input('name');
+        $keyword = $request->input('keyword');
 
-        // 2. Lakukan pencarian di database
-        $babysitters = Babysitter::where('name', 'LIKE', "%{$keyword}%")
-            ->where('is_available', true) // Hanya cari yang tersedia
-            ->limit(15) // Batasi hasil pencarian
+        // 2. Lakukan pencarian di database pada dua kolom sekaligus
+        $babysitters = Babysitter::where('is_available', true)
+            ->where(function ($query) use ($keyword) {
+                $query->where('name', 'LIKE', "%{$keyword}%")
+                      ->orWhere('address', 'LIKE', "%{$keyword}%");
+            })
+            ->limit(15)
             ->get();
 
         // 3. Kembalikan hasil menggunakan BabysitterResource

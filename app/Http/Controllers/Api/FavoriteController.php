@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Resources\BabysitterResource; // <-- Pastikan ini di-import
 
 class FavoriteController extends Controller
 {
@@ -14,11 +15,8 @@ class FavoriteController extends Controller
     public function toggle(Request $request, $babysitterId)
     {
         $user = Auth::user();
-        // `toggle` adalah fungsi bawaan Laravel untuk relasi many-to-many
-        // yang sangat efisien untuk kasus ini.
         $result = $user->favorites()->toggle($babysitterId);
 
-        // Cek hasil dari toggle untuk memberikan pesan yang sesuai
         if (count($result['attached']) > 0) {
             $message = 'Babysitter berhasil ditambahkan ke favorit.';
         } else {
@@ -29,14 +27,18 @@ class FavoriteController extends Controller
     }
 
     /**
-     * Mengambil daftar ID babysitter yang difavoritkan oleh pengguna.
+     * Mengambil daftar DATA LENGKAP babysitter yang difavoritkan oleh pengguna.
+     * VERSI INI SUDAH DIPERBAIKI.
      */
     public function index(Request $request)
     {
         $user = Auth::user();
-        // `pluck` akan mengambil hanya kolom 'babysitter_id' dari tabel favorites
-        $favoriteIds = $user->favorites()->pluck('babysitter_id');
 
-        return response()->json($favoriteIds);
+        // Ambil SEMUA DATA babysitter yang terkait melalui relasi 'favorites'
+        $favoriteBabysitters = $user->favorites()->get();
+
+        // Gunakan BabysitterResource untuk memformat hasilnya agar konsisten
+        // dengan endpoint API lainnya.
+        return BabysitterResource::collection($favoriteBabysitters);
     }
 }

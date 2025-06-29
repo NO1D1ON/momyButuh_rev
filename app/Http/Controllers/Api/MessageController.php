@@ -47,16 +47,22 @@ class MessageController extends Controller
     {
         $user = $request->user();
 
+        // Ambil percakapan di mana pengguna adalah 'user' atau 'babysitter'
         $conversations = Conversation::where('user_id', $user->id)
             ->orWhere('babysitter_id', $user->id)
             ->with([
-                'user:id,name',
-                'babysitter:id,name',
+                // Muat data lawan bicara.
+                // Jika user login adalah 'user', maka lawan bicaranya 'babysitter'. Begitu sebaliknya.
+                'user:id,name', // Selalu ambil data user
+                'babysitter:id,name', // Selalu ambil data babysitter
+                // Muat pesan terakhir untuk ditampilkan sebagai preview
                 'latestMessage'
             ])
             ->get();
 
+        // Format data agar mudah digunakan di Flutter
         $formattedConversations = $conversations->map(function ($convo) use ($user) {
+            // Tentukan siapa lawan bicara
             $otherParty = $user->id === $convo->user_id ? $convo->babysitter : $convo->user;
             
             return [
@@ -64,8 +70,7 @@ class MessageController extends Controller
                 'other_party_id' => $otherParty->id,
                 'other_party_name' => $otherParty->name,
                 'last_message' => $convo->latestMessage->body ?? 'Belum ada pesan',
-                // PERBAIKAN: Gunakan optional chaining (?->) untuk mencegah error jika latestMessage null
-                'last_message_time' => $convo->latestMessage?->created_at->diffForHumans() ?? '',
+                'last_message_time' => $convo->latestMessage->created_at->diffForHumans() ?? '',
             ];
         });
 
@@ -110,32 +115,42 @@ class MessageController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'babysitter_id' => 'required|exists:babysitters,id',
             'body' => 'required|string|max:1000',
+            'receiver_id' => 'required|integer', // Gunakan receiver_id yang lebih umum
         ]);
 
-        $user = Auth::user();
+        $sender = $request->user(); // Pengirim yang sedang login (User atau Babysitter)
 
-        $conversation = Conversation::firstOrCreate([
-            'user_id' => $user->id,
-            'babysitter_id' => $validated['babysitter_id']
-        ]);
+        $userId = null;
+        $babysitterId = null;
 
-        if ($user->id !== $conversation->user_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        // Tentukan siapa User dan siapa Babysitter dalam percakapan ini
+        if ($sender instanceof \App\Models\User) {
+            $userId = $sender->id;
+            $babysitterId = $validated['receiver_id'];
+        } elseif ($sender instanceof \App\Models\Babysitter) {
+            $userId = $validated['receiver_id'];
+            $babysitterId = $sender->id;
+        } else {
+            return response()->json(['message' => 'Tipe pengirim tidak valid'], 400);
         }
+        
+        // Cari atau buat percakapan dengan pasangan ID yang benar
+        $conversation = Conversation::firstOrCreate([
+            'user_id' => $userId,
+            'babysitter_id' => $babysitterId,
+        ]);
 
+        // Buat pesan
         $message = $conversation->messages()->create([
-            'sender_id' => $user->id,
-            'sender_type' => get_class($user),
+            'sender_id' => $sender->id,
+            'sender_type' => get_class($sender),
             'body' => $validated['body'],
         ]);
 
-        $message->load('sender:id,name');
-
         broadcast(new MessageSent($message))->toOthers();
 
-        return response()->json($message, 201);
+        return response()->json($message->load('sender:id,name'), 201);
     }
 
     /**
@@ -290,26 +305,23 @@ class MessageController extends Controller
 
     public function initiateConversation(Request $request)
     {
-        // Validasi input untuk memastikan babysitter_id ada dan valid
+        // Validasi ini mengharuskan 'babysitter_id' ada di body permintaan
         $validated = $request->validate([
             'babysitter_id' => 'required|exists:babysitters,id',
         ]);
 
         $user = $request->user();
 
-        // Cari percakapan yang sudah ada, atau buat yang baru jika tidak ditemukan.
-        // Ini mencegah duplikasi record percakapan antara dua pengguna yang sama.
-        $conversation = \App\Models\Conversation::firstOrCreate(
+        $conversation = Conversation::firstOrCreate(
             [
                 'user_id' => $user->id,
                 'babysitter_id' => $validated['babysitter_id'],
             ]
         );
 
-        // Muat relasi agar data user dan babysitter ikut terkirim
         $conversation->load(['user:id,name', 'babysitter:id,name']);
 
-        // Kembalikan data percakapan yang lengkap (termasuk ID-nya)
+        // Kembalikan data percakapan, termasuk ID-nya
         return response()->json($conversation);
     }
 }

@@ -8,13 +8,59 @@ use App\Http\Resources\BabysitterResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
-class BabysitterController extends Controller
+class BabysitterAuthController extends Controller
 {
     /**
      * Menampilkan semua babysitter yang tersedia
      */
+
+    public function login(Request $request)
+    {
+        // 1. Validasi Input
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        // 2. Cari babysitter berdasarkan email
+        $babysitter = Babysitter::where('email', $request->email)->first();
+
+        // 3. Verifikasi babysitter dan password
+        if (! $babysitter || ! Hash::check($request->password, $babysitter->password)) {
+            // Jika otentikasi gagal, berikan respons error yang standar
+            throw ValidationException::withMessages([
+                'message' => ['Email atau password yang Anda masukkan salah.'],
+            ]);
+        }
+
+        // 4. Jika berhasil, buat token Sanctum untuk user babysitter
+        $token = $babysitter->createToken('babysitter-auth-token')->plainTextToken;
+
+        // 5. Kembalikan respons sukses beserta token dan data user
+        return response()->json([
+            'success' => true,
+            'message' => 'Login berhasil',
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'user' => $babysitter // Mengirim data user yang login
+        ], 200);
+    }
+
+    // Pastikan Anda juga punya method logout jika didefinisikan di routes
+    public function logout(Request $request)
+    {
+        // Mencabut token yang digunakan untuk request ini
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Logout berhasil'
+        ]);
+    }
+
     public function index(Request $request)
     {
         try {

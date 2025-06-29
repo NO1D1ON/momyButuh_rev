@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\BabysitterAuthController;
 use App\Http\Controllers\Api\BabysitterDashboardController;
 use App\Http\Controllers\Api\JobOfferController;
 use App\Http\Controllers\Api\TransactionHistoryController;
+use App\Http\Controllers\Api\BabysitterBookingController;
+use App\Http\Controllers\Api\ParentProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,8 +22,9 @@ use App\Http\Controllers\Api\TransactionHistoryController;
 |--------------------------------------------------------------------------
 */
 
+// ==================================================
 // RUTE PUBLIK - Tidak memerlukan otentikasi
-//==================================================
+// ==================================================
 
 // Otentikasi Pengguna (Orang Tua)
 Route::post('/register', [AuthController::class, 'register']);
@@ -36,29 +39,35 @@ Route::get('/babysitters', [BabysitterController::class, 'index']);
 Route::get('/babysitters/search', [BabysitterController::class, 'search']);
 Route::get('/babysitters/nearby', [BabysitterController::class, 'nearby']);
 Route::get('/babysitters/{babysitter}', [BabysitterController::class, 'show']);
+Route::get('/job-offers', [JobOfferController::class, 'index']);
 
 
-// RUTE TERLINDUNGI - Memerlukan otentikasi
-//================================================================
-// PERBAIKAN UTAMA: Gunakan middleware 'auth:sanctum' saja.
-// Sanctum cukup pintar untuk memeriksa semua guard yang relevan
-// (seperti 'web' dan 'babysitter') yang dikonfigurasi di config/auth.php.
-Route::middleware('auth:sanctum')->group(function () {
+// ================================================================
+// RUTE TERLINDUNGI - Memerlukan otentikasi User atau Babysitter
+// ================================================================
+// PERBAIKAN: Middleware diubah untuk secara eksplisit memeriksa guard 'sanctum' (untuk user) 
+// dan 'babysitter'. Ini penting untuk otorisasi broadcasting.
+Route::middleware(['auth:sanctum,babysitter'])->group(function () {
 
     // --- PROFIL & LOGOUT ---
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
- 
     Route::post('/logout', [AuthController::class, 'logout']); 
+    // PERBAIKAN: Pastikan logout babysitter menggunakan controller-nya sendiri
     Route::post('/babysitter/logout', [BabysitterAuthController::class, 'logout']);
 
 
+
     // --- PERCAKAPAN & PESAN (CHAT) ---
-    // Rute-rute ini diasumsikan dapat diakses oleh kedua jenis pengguna
+    // Rute-rute ini telah kita kembangkan dan sekarang lengkap
     Route::get('/conversations', [MessageController::class, 'conversations']);
+    Route::post('/conversations/initiate', [MessageController::class, 'initiateConversation']);
+    Route::get('/conversations/{conversation}/messages', [MessageController::class, 'getMessages']);
+    Route::post('/conversations/{conversation}/read', [MessageController::class, 'markAsRead']);
+    Route::post('/conversations/{conversation}/typing', [MessageController::class, 'startTyping']);
     Route::post('/messages', [MessageController::class, 'store']);
-    Route::get('/conversation/with/{babysitterId}', [MessageController::class, 'getConversationWithBabysitter']);
+    // PERBAIKAN: Rute '/conversation/with/{babysitterId}' telah dihapus karena redundan
 
 
     // --- FITUR UTAMA LAINNYA ---
@@ -68,7 +77,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/bookings/{booking}/complete', [BookingController::class, 'complete']);
 
     // Penawaran Pekerjaan (Job Offers)
-    Route::get('/job-offers', [JobOfferController::class, 'index']);
     Route::post('/job-offers', [JobOfferController::class, 'store']);
     Route::get('/job-offers/{jobOffer}', [JobOfferController::class, 'show']);
 
@@ -86,8 +94,14 @@ Route::middleware('auth:sanctum')->group(function () {
     
 
     // --- RUTE KHUSUS BABYSITTER ---
-    Route::get('/babysitter/dashboard', [BabysitterDashboardController::class, 'index'])
-        ->middleware('can:is_babysitter'); // Contoh penggunaan policy/gate untuk keamanan tambahan
+    Route::get('/babysitter/dashboard', [BabysitterDashboardController::class, 'index']);
+
+    Route::get('/babysitter/my-bookings', [BabysitterBookingController::class, 'index']);
+
+    Route::get('/my-job-offers', [JobOfferController::class, 'myOffers']);
+
+    Route::post('/job-offers/{jobOffer}/accept', [JobOfferController::class, 'acceptOffer']);
+
+    Route::get('/parents/{user}', [ParentProfileController::class, 'show']);
 
 });
-

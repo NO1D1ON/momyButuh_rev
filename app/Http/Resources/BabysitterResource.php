@@ -34,7 +34,10 @@ class BabysitterResource extends JsonResource
             // Anda juga bisa menambahkan data lain yang relevan di sini
             'is_available' => $this->is_available,
             'phone_number' => $this->phone_number,
-            'distance' => $this->when(isset($this->distance), $this->distance) // Hanya sertakan jika ada
+            'distance' => $this->when(isset($this->distance), $this->distance), // Hanya sertakan jika ada
+
+            'latitude' => (float) $this->latitude,
+            'longitude' => (float) $this->longitude,
         ];
     }
 }
