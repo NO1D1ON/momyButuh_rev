@@ -45,6 +45,7 @@ Route::get('/babysitters/search', [BabysitterController::class, 'search']);
 Route::get('/babysitters/nearby', [BabysitterController::class, 'nearby']);
 Route::get('/babysitters/{babysitter}', [BabysitterController::class, 'show']);
 Route::get('/job-offers', [JobOfferController::class, 'index']);
+Route::get('/babysitter-availabilities', [BabysitterAvailabilityController::class, 'index']);
 
 
 

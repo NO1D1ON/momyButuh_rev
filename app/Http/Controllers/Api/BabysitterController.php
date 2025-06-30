@@ -89,130 +89,30 @@ class BabysitterController extends Controller
      */
     public function nearby(Request $request)
     {
-        try {
-            // Validasi input
-            $validated = $request->validate([
-                'latitude' => 'required|numeric|between:-90,90',
-                'longitude' => 'required|numeric|between:-180,180',
-                'radius' => 'nullable|integer|min:1|max:100',
-                'limit' => 'nullable|integer|min:1|max:50'
-            ]);
+        $validated = $request->validate([
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'radius' => 'nullable|integer|min:1|max:100',
+        ]);
 
-            $latitude = $validated['latitude'];
-            $longitude = $validated['longitude'];
-            $radius = $validated['radius'] ?? 25; // Default radius 25 KM
-            $limit = $validated['limit'] ?? 20;
+        $latitude = $validated['latitude'];
+        $longitude = $validated['longitude'];
+        $radius = $validated['radius'] ?? 25;
 
-            // Log untuk debugging
-            Log::info('Nearby babysitter search', [
-                'latitude' => $latitude,
-                'longitude' => $longitude,
-                'radius' => $radius
-            ]);
+        // Rumus Haversine dalam satu blok selectRaw
+        $babysitters = Babysitter::select('babysitters.*')
+            ->selectRaw(
+                '( 6371 * acos( cos( radians(?) ) * cos( radians( latitude ) ) * cos( radians( longitude ) - radians(?) ) + sin( radians(?) ) * sin( radians( latitude ) ) ) ) AS distance',
+                [$latitude, $longitude, $latitude] // Binding untuk selectRaw
+            )
+            ->where('is_available', true)
+            ->whereNotNull(['latitude', 'longitude']) // Pastikan data lokasi ada
+            ->having('distance', '<=', $radius)
+            ->orderBy('distance', 'asc')
+            ->limit(20)
+            ->get();
 
-            // Cek apakah ada babysitter dengan koordinat yang valid
-            $hasLocationData = Babysitter::whereNotNull('latitude')
-                                       ->whereNotNull('longitude')
-                                       ->where('latitude', '!=', 0)
-                                       ->where('longitude', '!=', 0)
-                                       ->exists();
-
-            if (!$hasLocationData) {
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'No babysitters with location data found',
-                    'data' => [],
-                    'meta' => [
-                        'total' => 0,
-                        'radius' => $radius,
-                        'center' => [
-                            'latitude' => $latitude,
-                            'longitude' => $longitude
-                        ]
-                    ]
-                ]);
-            }
-
-            // Query dengan Haversine Formula yang lebih robust
-            $babysitters = DB::table('babysitters')
-                ->select([
-                    'babysitters.*',
-                    DB::raw('ROUND(
-                        (6371 * acos(
-                            LEAST(1.0, 
-                                GREATEST(-1.0,
-                                    cos(radians(?)) * cos(radians(COALESCE(latitude, 0))) * 
-                                    cos(radians(COALESCE(longitude, 0)) - radians(?)) + 
-                                    sin(radians(?)) * sin(radians(COALESCE(latitude, 0)))
-                                )
-                            )
-                        )), 2
-                    ) AS distance')
-                ])
-                ->whereNotNull('latitude')
-                ->whereNotNull('longitude')
-                ->where('latitude', '!=', 0)
-                ->where('longitude', '!=', 0)
-                ->where('is_available', true)
-                ->whereRaw('
-                    (6371 * acos(
-                        LEAST(1.0, 
-                            GREATEST(-1.0,
-                                cos(radians(?)) * cos(radians(COALESCE(latitude, 0))) * 
-                                cos(radians(COALESCE(longitude, 0)) - radians(?)) + 
-                                sin(radians(?)) * sin(radians(COALESCE(latitude, 0)))
-                            )
-                        )
-                    )) <= ?
-                ', [$latitude, $longitude, $latitude, $radius])
-                ->orderBy('distance', 'asc')
-                ->orderBy('rating', 'desc')
-                ->limit($limit)
-                ->get();
-
-            // Konversi hasil ke Collection of Babysitter models
-            $babysitterModels = $babysitters->map(function ($item) {
-                $babysitter = new Babysitter((array) $item);
-                $babysitter->distance = $item->distance;
-                return $babysitter;
-            });
-
-            return response()->json([
-                'status' => 'success',
-                'data' => BabysitterResource::collection($babysitterModels),
-                'meta' => [
-                    'total' => $babysitterModels->count(),
-                    'radius' => $radius,
-                    'center' => [
-                        'latitude' => $latitude,
-                        'longitude' => $longitude
-                    ]
-                ]
-            ]);
-
-        } catch (ValidationException $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            Log::error('Error in nearby babysitter search', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
-            ]);
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to search nearby babysitters',
-                'debug' => config('app.debug') ? [
-                    'error' => $e->getMessage(),
-                    'line' => $e->getLine(),
-                    'file' => $e->getFile()
-                ] : null
-            ], 500);
-        }
+        return BabysitterResource::collection($babysitters);
     }
 
     /**
