@@ -15,6 +15,11 @@ use App\Http\Controllers\Api\JobOfferController;
 use App\Http\Controllers\Api\TransactionHistoryController;
 use App\Http\Controllers\Api\BabysitterBookingController;
 use App\Http\Controllers\Api\ParentProfileController;
+use App\Http\Controllers\Api\BookingConfirmationController;
+use App\Http\Controllers\Api\LocationSearchController;
+use App\Http\Controllers\Api\BabysitterAvailabilityController;
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -40,6 +45,7 @@ Route::get('/babysitters/search', [BabysitterController::class, 'search']);
 Route::get('/babysitters/nearby', [BabysitterController::class, 'nearby']);
 Route::get('/babysitters/{babysitter}', [BabysitterController::class, 'show']);
 Route::get('/job-offers', [JobOfferController::class, 'index']);
+
 
 
 // ================================================================
@@ -104,4 +110,12 @@ Route::middleware(['auth:sanctum,babysitter'])->group(function () {
 
     Route::get('/parents/{user}', [ParentProfileController::class, 'show']);
 
+    Route::get('/parent-profile/{user}', [ParentProfileController::class, 'show']);
+
+    Route::post('/bookings/{booking}/parent-confirm', [BookingConfirmationController::class, 'parentConfirm']);
+    Route::post('/bookings/{booking}/babysitter-confirm', [BookingConfirmationController::class, 'babysitterConfirm']);
+
+    Route::get('/location/search', [LocationSearchController::class, 'search']);
+    Route::get('/location/details', [LocationSearchController::class, 'getDetails']);
+    Route::post('/babysitter/availabilities', [BabysitterAvailabilityController::class, 'store']);
 });

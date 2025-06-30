@@ -85,11 +85,16 @@ class Babysitter extends Authenticatable
         return $this->hasMany(AvailableSchedule::class);
     }
 
-     public function getAgeAttribute() // TAMBAHKAN FUNGSI INI
+    public function getAgeAttribute() // TAMBAHKAN FUNGSI INI
     {
         if ($this->birth_date) {
             return Carbon::parse($this->birth_date)->age;
         }
         return 0; // Beri nilai default jika tanggal lahir tidak ada
+    }
+
+    public function availabilities()
+    {
+        return $this->hasMany(BabysitterAvailability::class);
     }
 }

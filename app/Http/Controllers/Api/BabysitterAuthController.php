@@ -217,4 +217,35 @@ class BabysitterAuthController extends Controller
             ->get();
         return BabysitterResource::collection($babysitters);
     }
+
+    public function register(Request $request)
+    {
+        // PERBAIKAN: Tambahkan validasi untuk semua field dari formulir
+        $validatedData = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:babysitters'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+            'phone_number' => ['required', 'string', 'max:20'],
+            'birth_date' => ['required', 'date_format:Y-m-d'],
+            'address' => ['required', 'string'],
+        ]);
+
+        // Buat instance Babysitter baru dengan data yang sudah divalidasi
+        $babysitter = Babysitter::create([
+            'name' => $validatedData['name'],
+            'email' => $validatedData['email'],
+            'password' => Hash::make($validatedData['password']),
+            'phone_number' => $validatedData['phone_number'],
+            'birth_date' => $validatedData['birth_date'],
+            'address' => $validatedData['address'],
+        ]);
+
+        // Berikan respons sukses
+        return response()->json([
+            'success' => true,
+            'message' => 'Registrasi Babysitter berhasil. Silakan login.',
+            'data' => $babysitter
+        ], 201); // 201 Created
+    }
+
 }
