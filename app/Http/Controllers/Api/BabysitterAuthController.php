@@ -220,25 +220,24 @@ class BabysitterAuthController extends Controller
 
     public function register(Request $request)
     {
-        // PERBAIKAN: Tambahkan validasi untuk semua field dari formulir
-        $validatedData = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:babysitters'],
-            'password' => ['required', 'confirmed', Password::defaults()],
-            'phone_number' => ['required', 'string', 'max:20'],
-            'birth_date' => ['required', 'date_format:Y-m-d'],
-            'address' => ['required', 'string'],
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:babysitters',
+            'password' => 'required|string|min:8|confirmed',
+            'phone_number' => 'required|string',
+            'birth_date' => 'required|date',
+            'address' => 'required|string',
         ]);
 
-        // Buat instance Babysitter baru dengan data yang sudah divalidasi
         $babysitter = Babysitter::create([
-            'name' => $validatedData['name'],
-            'email' => $validatedData['email'],
-            'password' => Hash::make($validatedData['password']),
-            'phone_number' => $validatedData['phone_number'],
-            'birth_date' => $validatedData['birth_date'],
-            'address' => $validatedData['address'],
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
+            'phone_number' => $validated['phone_number'],
+            'birth_date' => $validated['birth_date'],
+            'address' => $validated['address'],
         ]);
+
 
         // Berikan respons sukses
         return response()->json([

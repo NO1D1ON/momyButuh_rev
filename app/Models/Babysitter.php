@@ -26,20 +26,9 @@ class Babysitter extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'email_verified_at',  // <-- Tambahkan ini
-        'phone_number',
-        'birth_date',
-        'address',
-        'bio',
-        'rate_per_hour',
-        'is_available',
-        'latitude',
-        'longitude',
-        'rating',             // <-- Tambahkan ini
-        'experience_years',
+        'name', 'email', 'password', 'phone_number', 'birth_date', 'address',
+        'latitude', 'longitude', 'bio', 'rate_per_hour', 'rating',
+        'experience_years', 'is_available', 'balance', 'email_verified_at',
     ];
 
     protected $hidden = [
