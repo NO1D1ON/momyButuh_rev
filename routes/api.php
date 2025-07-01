@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\ParentProfileController;
 use App\Http\Controllers\Api\BookingConfirmationController;
 use App\Http\Controllers\Api\LocationSearchController;
 use App\Http\Controllers\Api\BabysitterAvailabilityController;
+use App\Http\Controllers\Api\NotificationController;
 
 
 
@@ -119,4 +120,11 @@ Route::middleware(['auth:sanctum,babysitter'])->group(function () {
     Route::get('/location/search', [LocationSearchController::class, 'search']);
     Route::get('/location/details', [LocationSearchController::class, 'getDetails']);
     Route::post('/babysitter/availabilities', [BabysitterAvailabilityController::class, 'store']);
+
+    Route::post('/favorites/{babysitterId}/toggle', [FavoriteController::class, 'toggle']);
+
+    Route::get('/babysitter-availabilities/nearby', [BabysitterAvailabilityController::class, 'getNearbyAvailabilities']);
+    Route::get('/favorites/ids', [FavoriteController::class, 'getFavoriteIds']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{notification}/mark-as-read', [NotificationController::class, 'markAsRead']);
 });

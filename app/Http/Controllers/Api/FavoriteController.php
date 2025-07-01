@@ -41,4 +41,11 @@ class FavoriteController extends Controller
         // dengan endpoint API lainnya.
         return BabysitterResource::collection($favoriteBabysitters);
     }
+
+    public function getFavoriteIds(Request $request)
+    {
+        $favoriteIds = $request->user()->favorites()->pluck('babysitter_id');
+
+        return response()->json($favoriteIds);
+    }
 }

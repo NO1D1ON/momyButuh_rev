@@ -110,7 +110,7 @@ class BookingController extends Controller
     {
         $bookings = Booking::where('user_id', $request->user()->id)
                             ->with('babysitter:id,name')
-                            ->latest()
+                            ->latest('booking_date')
                             ->get();
 
         $formattedBookings = $bookings->map(function ($booking) {
@@ -151,5 +151,17 @@ class BookingController extends Controller
         });
 
         return response()->json(['message' => 'Booking telah diselesaikan dan pembayaran telah diteruskan ke babysitter.']);
+    }
+
+    public function accept(Request $request, Booking $booking)
+    {
+        // ... logika Anda untuk mengubah status booking menjadi 'confirmed' ...
+        $booking->status = 'confirmed';
+        $booking->save();
+
+        // Kirim notifikasi real-time ke orang tua
+        event(new \App\Events\BookingAccepted($booking));
+
+        return response()->json(['message' => 'Booking berhasil diterima.']);
     }
 }

@@ -22,6 +22,8 @@ class BabysitterAvailability extends Model
         'rate_per_hour',
         'location_preference',
         'notes',
+        'latitude', 
+        'longitude', 
     ];
 
     /**
