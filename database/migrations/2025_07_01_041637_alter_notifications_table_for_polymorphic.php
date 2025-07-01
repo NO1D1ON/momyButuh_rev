@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -16,12 +17,10 @@ return new class extends Migration
             // Nama constraint bisa berbeda, sesuaikan jika perlu
             // Cek dulu apakah kolomnya ada sebelum drop
             if (Schema::hasColumn('notifications', 'user_id')) {
-                // Cek apakah ada foreign key constraint sebelum drop
-                // Nama constraint biasanya: {table}_{column}_foreign
-                $foreignKeys = collect(DB::select("SHOW CREATE TABLE notifications"))->first()->{"Create Table"};
-                if (str_contains($foreignKeys, 'user_id')) {
-                    $table->dropForeign('user_id');
-                }
+                // Hapus foreign key menggunakan perintah SQL langsung
+                DB::statement('ALTER TABLE notifications DROP FOREIGN KEY notifications_user_id_foreign');
+
+                // Hapus kolomnya menggunakan Schema Builder seperti biasa
                 $table->dropColumn('user_id');
             }
 
