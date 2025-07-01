@@ -8,8 +8,10 @@ class DatabaseSeeder extends Seeder
     {
         // Panggil semua seeder yang ingin Anda jalankan di sini
         $this->call([
-            UserSeeder::class,
-            BabysitterSeeder::class, // <-- TAMBAHKAN BARIS INI
+            // UserSeeder::class,
+            // BabysitterSeeder::class, // <-- TAMBAHKAN BARIS INI
+            BabysitterAvailabilitySeeder::class,
+
         ]);
     }
 }

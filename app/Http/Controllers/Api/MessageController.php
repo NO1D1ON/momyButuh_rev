@@ -44,38 +44,44 @@ class MessageController extends Controller
      * Percakapan akan menyertakan pesan terakhir dan data lawan bicara.
      */
     public function conversations(Request $request)
-    {
-        $user = $request->user();
+{
+    $user = $request->user();
 
-        // Ambil percakapan di mana pengguna adalah 'user' atau 'babysitter'
-        $conversations = Conversation::where('user_id', $user->id)
-            ->orWhere('babysitter_id', $user->id)
-            ->with([
-                // Muat data lawan bicara.
-                // Jika user login adalah 'user', maka lawan bicaranya 'babysitter'. Begitu sebaliknya.
-                'user:id,name', // Selalu ambil data user
-                'babysitter:id,name', // Selalu ambil data babysitter
-                // Muat pesan terakhir untuk ditampilkan sebagai preview
-                'latestMessage'
-            ])
-            ->get();
+    $conversations = Conversation::where('user_id', $user->id)
+        ->orWhere('babysitter_id', $user->id)
+        ->with([
+            'user:id,name',
+            'babysitter:id,name',
+            'latestMessage'
+        ])
+        ->get();
 
-        // Format data agar mudah digunakan di Flutter
-        $formattedConversations = $conversations->map(function ($convo) use ($user) {
-            // Tentukan siapa lawan bicara
-            $otherParty = $user->id === $convo->user_id ? $convo->babysitter : $convo->user;
-            
-            return [
-                'conversation_id' => $convo->id,
-                'other_party_id' => $otherParty->id,
-                'other_party_name' => $otherParty->name,
-                'last_message' => $convo->latestMessage->body ?? 'Belum ada pesan',
-                'last_message_time' => $convo->latestMessage->created_at->diffForHumans() ?? '',
-            ];
-        });
+    // Format data agar mudah digunakan di Flutter
+    $formattedConversations = $conversations->map(function ($convo) use ($user) {
+        // Tentukan siapa lawan bicara
+        $otherParty = $user->id === $convo->user_id ? $convo->babysitter : $convo->user;
+        
+        // --- PERBAIKAN DIMULAI DI SINI ---
+        
+        // Cek apakah latestMessage ada. Jika ada, ambil propertinya. 
+        // Jika tidak, gunakan nilai default.
+        $lastMessageText = $convo->latestMessage ? $convo->latestMessage->body : 'Belum ada pesan';
+        $lastMessageTime = $convo->latestMessage ? $convo->latestMessage->created_at->diffForHumans() : '';
 
-        return response()->json($formattedConversations);
-    }
+        // --- BATAS PERBAIKAN ---
+
+        return [
+            'conversation_id' => $convo->id,
+            'other_party_id' => $otherParty->id,
+            'other_party_name' => $otherParty->name,
+            // Gunakan variabel yang sudah divalidasi
+            'last_message' => $lastMessageText,
+            'last_message_time' => $lastMessageTime,
+        ];
+    });
+
+    return response()->json($formattedConversations);
+}
 
     /**
      * Mendapatkan atau membuat percakapan dengan babysitter.
