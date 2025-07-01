@@ -20,7 +20,11 @@ return new class extends Migration
                 // Nama constraint biasanya: {table}_{column}_foreign
                 $foreignKeys = collect(DB::select("SHOW CREATE TABLE notifications"))->first()->{"Create Table"};
                 if (str_contains($foreignKeys, 'notifications_user_id_foreign')) {
-                    $table->dropForeign('notifications_user_id_foreign');
+                    try {
+                        $table->dropForeign('notifications_user_id_foreign');
+                    } catch (\Throwable $e) {
+                        // Foreign key tidak ada, aman diabaikan
+                    }
                 }
                 $table->dropColumn('user_id');
             }
