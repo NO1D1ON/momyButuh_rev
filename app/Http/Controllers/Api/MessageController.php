@@ -283,11 +283,11 @@ class MessageController extends Controller
      */
     public function getMessages(Request $request, Conversation $conversation): JsonResponse
     {
-        // ... (Isi metode tetap sama)
-        if ($request->user()->id !== $conversation->user_id && $request->user()->id !== $conversation->babysitter_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        // Otorisasi sekarang ditangani oleh ConversationPolicy.
+        // Jika gagal, Laravel akan otomatis mengirim respons 403 Forbidden.
+        $this->authorize('view', $conversation);
 
+        // Jika otorisasi berhasil, kode di bawah ini akan dieksekusi.
         $messages = $conversation->messages()
             ->with('sender:id,name')
             ->latest()
