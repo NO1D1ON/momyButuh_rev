@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Babysitter;
 use App\Models\Conversation;
 use App\Models\Message;
-use App\Events\MessageSent; // Event untuk broadcasting
+use App\Events\MessageSent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,9 +16,14 @@ use Illuminate\Http\JsonResponse;
 use App\Events\UserTyping;
 use App\Events\MessageRead;
 
+// --- TAMBAHKAN IMPORT INI ---
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class MessageController extends Controller
 {
+    // --- TAMBAHKAN TRAIT INI ---
+    use AuthorizesRequests;
+
     /**
      * Menampilkan semua percakapan milik user/babysitter yang login.
      */
@@ -44,61 +49,49 @@ class MessageController extends Controller
      * Percakapan akan menyertakan pesan terakhir dan data lawan bicara.
      */
     public function conversations(Request $request)
-{
-    $user = $request->user();
+    {
+        $user = $request->user();
 
-    $conversations = Conversation::where('user_id', $user->id)
-        ->orWhere('babysitter_id', $user->id)
-        ->with([
-            'user:id,name',
-            'babysitter:id,name',
-            'latestMessage'
-        ])
-        ->get();
+        $conversations = Conversation::where('user_id', $user->id)
+            ->orWhere('babysitter_id', $user->id)
+            ->with([
+                'user:id,name',
+                'babysitter:id,name',
+                'latestMessage'
+            ])
+            ->get();
 
-    // Format data agar mudah digunakan di Flutter
-    $formattedConversations = $conversations->map(function ($convo) use ($user) {
-        // Tentukan siapa lawan bicara
-        $otherParty = $user->id === $convo->user_id ? $convo->babysitter : $convo->user;
-        
-        // --- PERBAIKAN DIMULAI DI SINI ---
-        
-        // Cek apakah latestMessage ada. Jika ada, ambil propertinya. 
-        // Jika tidak, gunakan nilai default.
-        $lastMessageText = $convo->latestMessage ? $convo->latestMessage->body : 'Belum ada pesan';
-        $lastMessageTime = $convo->latestMessage ? $convo->latestMessage->created_at->diffForHumans() : '';
+        $formattedConversations = $conversations->map(function ($convo) use ($user) {
+            $otherParty = $user->id === $convo->user_id ? $convo->babysitter : $convo->user;
+            
+            $lastMessageText = $convo->latestMessage ? $convo->latestMessage->body : 'Belum ada pesan';
+            $lastMessageTime = $convo->latestMessage ? $convo->latestMessage->created_at->diffForHumans() : '';
 
-        // --- BATAS PERBAIKAN ---
+            return [
+                'conversation_id' => $convo->id,
+                'other_party_id' => $otherParty->id,
+                'other_party_name' => $otherParty->name,
+                'last_message' => $lastMessageText,
+                'last_message_time' => $lastMessageTime,
+            ];
+        });
 
-        return [
-            'conversation_id' => $convo->id,
-            'other_party_id' => $otherParty->id,
-            'other_party_name' => $otherParty->name,
-            // Gunakan variabel yang sudah divalidasi
-            'last_message' => $lastMessageText,
-            'last_message_time' => $lastMessageTime,
-        ];
-    });
-
-    return response()->json($formattedConversations);
-}
+        return response()->json($formattedConversations);
+    }
 
     /**
      * Mendapatkan atau membuat percakapan dengan babysitter.
      */
     public function getOrCreateConversation(Request $request, $babysitterId)
     {
-        // Cari babysitter secara manual untuk kontrol error yang lebih baik
         $babysitter = Babysitter::find($babysitterId);
 
-        // Jika tidak ditemukan, kembalikan 404 yang jelas
         if (!$babysitter) {
             return response()->json(['message' => 'Babysitter tidak ditemukan.'], 404);
         }
 
         $user = $request->user();
 
-        // Cari atau buat percakapan baru
         $conversation = Conversation::firstOrCreate(
             [
                 'user_id' => $user->id,
@@ -106,8 +99,6 @@ class MessageController extends Controller
             ]
         );
 
-        // Muat pesan-pesan yang ada di dalamnya untuk ditampilkan di layar chat
-        // Diurutkan dari yang terbaru, dan dibatasi 50 pesan terakhir (untuk performa)
         $conversation->load(['messages' => function ($query) {
             $query->latest()->limit(50);
         }]);
@@ -122,15 +113,14 @@ class MessageController extends Controller
     {
         $validated = $request->validate([
             'body' => 'required|string|max:1000',
-            'receiver_id' => 'required|integer', // Gunakan receiver_id yang lebih umum
+            'receiver_id' => 'required|integer',
         ]);
 
-        $sender = $request->user(); // Pengirim yang sedang login (User atau Babysitter)
+        $sender = $request->user();
 
         $userId = null;
         $babysitterId = null;
 
-        // Tentukan siapa User dan siapa Babysitter dalam percakapan ini
         if ($sender instanceof \App\Models\User) {
             $userId = $sender->id;
             $babysitterId = $validated['receiver_id'];
@@ -141,13 +131,11 @@ class MessageController extends Controller
             return response()->json(['message' => 'Tipe pengirim tidak valid'], 400);
         }
         
-        // Cari atau buat percakapan dengan pasangan ID yang benar
         $conversation = Conversation::firstOrCreate([
             'user_id' => $userId,
             'babysitter_id' => $babysitterId,
         ]);
 
-        // Buat pesan
         $message = $conversation->messages()->create([
             'sender_id' => $sender->id,
             'sender_type' => get_class($sender),
@@ -158,25 +146,36 @@ class MessageController extends Controller
 
         return response()->json($message->load('sender:id,name'), 201);
     }
+    
+    /**
+     * Mengambil riwayat pesan untuk sebuah percakapan.
+     * --- METODE YANG DIPERBAIKI ---
+     * @param Request $request
+     * @param Conversation $conversation
+     * @return JsonResponse
+     */
+    public function getMessages(Request $request, Conversation $conversation): JsonResponse
+    {
+        // Otorisasi sekarang ditangani oleh ConversationPolicy.
+        $this->authorize('view', $conversation);
+
+        $messages = $conversation->messages()
+            ->with('sender:id,name')
+            ->latest()
+            ->paginate(50);
+
+        return response()->json($messages);
+    }
 
     /**
      * Menandai semua pesan yang belum dibaca dalam sebuah percakapan sebagai telah dibaca.
-     *
-     * @param Request $request
-     * @param Conversation $conversation
-     * @return \Illuminate\Http\JsonResponse
      */
     public function markAsRead(Request $request, Conversation $conversation)
     {
-        // Otorisasi
-        if ($request->user()->id !== $conversation->user_id && $request->user()->id !== $conversation->babysitter_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->authorize('view', $conversation); // Bisa gunakan policy yang sama
 
         $user = $request->user();
 
-        // PERBAIKAN: Kueri ini lebih jelas dan aman.
-        // Ia mencari pesan yang belum dibaca dan TIDAK dikirim oleh user saat ini.
         $conversation->messages()
             ->whereNull('read_at')
             ->whereNot(function ($query) use ($user) {
@@ -185,16 +184,13 @@ class MessageController extends Controller
             })
             ->update(['read_at' => now()]);
 
-        // Siarkan event bahwa pesan telah dibaca ke client lain
         broadcast(new MessageRead($conversation))->toOthers();
 
         return response()->json(['message' => 'Messages marked as read']);
     }
 
-
-    /**
-     * Menghitung jumlah pesan yang belum dibaca
-     */
+    // ... (sisa metode lainnya seperti getUnreadCount, getUserStatus, dll.)
+    
     public function getUnreadCount(Request $request)
     {
         try {
@@ -222,9 +218,6 @@ class MessageController extends Controller
         }
     }
 
-    /**
-     * Mendapatkan status online user (untuk real-time presence)
-     */
     public function getUserStatus(Request $request, $userId)
     {
         try {
@@ -247,9 +240,6 @@ class MessageController extends Controller
         }
     }
 
-    /**
-     * Update status online user
-     */
     public function updateOnlineStatus(Request $request)
     {
         try {
@@ -257,9 +247,8 @@ class MessageController extends Controller
             $cacheKey = "user_online_{$user->id}";
             $lastSeenKey = "user_last_seen_{$user->id}";
             
-            // Set user as online for 5 minutes
             Cache::put($cacheKey, true, 300);
-            Cache::put($lastSeenKey, now(), 86400); // Keep last seen for 24 hours
+            Cache::put($lastSeenKey, now(), 86400);
 
             return response()->json([
                 'status' => 'success',
@@ -273,37 +262,10 @@ class MessageController extends Controller
         }
     }
 
-    /**
-     * Mengambil riwayat pesan untuk sebuah percakapan.
-     * Menggunakan paginasi untuk efisiensi.
-     *
-     * @param Request $request
-     * @param Conversation $conversation
-     * @return JsonResponse
-     */
-    public function getMessages(Request $request, Conversation $conversation): JsonResponse
-    {
-        // Otorisasi sekarang ditangani oleh ConversationPolicy.
-        // Jika gagal, Laravel akan otomatis mengirim respons 403 Forbidden.
-        $this->authorize('view', $conversation);
-
-        // Jika otorisasi berhasil, kode di bawah ini akan dieksekusi.
-        $messages = $conversation->messages()
-            ->with('sender:id,name')
-            ->latest()
-            ->paginate(50);
-
-        return response()->json($messages);
-    }
-
     public function startTyping(Request $request, Conversation $conversation)
     {
-        // Otorisasi sederhana
-        if ($request->user()->id !== $conversation->user_id && $request->user()->id !== $conversation->babysitter_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->authorize('view', $conversation);
 
-        // Siarkan event ke client lain di channel yang sama
         broadcast(new UserTyping($request->user(), $conversation))->toOthers();
 
         return response()->json(['message' => 'Typing event broadcasted']);
@@ -311,7 +273,6 @@ class MessageController extends Controller
 
     public function initiateConversation(Request $request)
     {
-        // Validasi ini mengharuskan 'babysitter_id' ada di body permintaan
         $validated = $request->validate([
             'babysitter_id' => 'required|exists:babysitters,id',
         ]);
@@ -327,7 +288,6 @@ class MessageController extends Controller
 
         $conversation->load(['user:id,name', 'babysitter:id,name']);
 
-        // Kembalikan data percakapan, termasuk ID-nya
         return response()->json($conversation);
     }
 }
