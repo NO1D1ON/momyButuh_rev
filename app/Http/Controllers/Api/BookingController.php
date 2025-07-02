@@ -85,6 +85,50 @@ class BookingController extends Controller
     }
 
     /**
+     * --- METODE YANG DITAMBAHKAN KEMBALI ---
+     * Mengambil riwayat booking milik pengguna yang sedang login.
+     */
+    public function myBookings(Request $request)
+    {
+        // Ambil booking berdasarkan user_id untuk orang tua atau babysitter_id untuk babysitter
+        $user = $request->user();
+        $query = Booking::query();
+
+        if ($user instanceof \App\Models\User) {
+            $query->where('user_id', $user->id)->with('babysitter:id,name');
+        } elseif ($user instanceof \App\Models\Babysitter) {
+            $query->where('babysitter_id', $user->id)->with('user:id,name');
+        }
+
+        $bookings = $query->latest('booking_date')->get();
+
+        // Format data untuk dikirim ke frontend
+        $formattedBookings = $bookings->map(function ($booking) use ($user) {
+            $isParent = $user instanceof \App\Models\User;
+            $otherPartyName = $isParent 
+                ? (optional($booking->babysitter)->name ?? 'Data Babysitter Dihapus')
+                : (optional($booking->user)->name ?? 'Data Orang Tua Dihapus');
+
+            return [
+                'id' => $booking->id,
+                'babysitter_name' => $isParent ? $otherPartyName : $user->name, // Menyesuaikan field
+                'parent_name' => $isParent ? $user->name : $otherPartyName, // Menyesuaikan field
+                'user_id' => $booking->user_id,
+                'booking_date' => $booking->booking_date,
+                'start_time' => $booking->start_time,
+                'end_time' => $booking->end_time,
+                'total_price' => $booking->total_price,
+                'status' => $booking->status,
+                'review' => $booking->review, // Sertakan review jika ada
+                'parent_confirmed_at' => $booking->parent_confirmed_at,
+                'babysitter_confirmed_at' => $booking->babysitter_confirmed_at,
+            ];
+        });
+
+        return response()->json($formattedBookings);
+    }
+
+    /**
      * Konfirmasi penyelesaian pekerjaan dari sisi orang tua.
      */
     public function parentConfirm(Request $request, Booking $booking)
@@ -177,6 +221,4 @@ class BookingController extends Controller
             return response()->json(['message' => 'Gagal memproses pembayaran: ' . $e->getMessage()], 500);
         }
     }
-    
-    // Metode myBookings dan accept tetap sama, bisa Anda tambahkan kembali di sini.
 }
