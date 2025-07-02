@@ -12,30 +12,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('notifications', function (Blueprint $table) {
-            // [PERBAIKAN #1] Hapus kolom user_id dengan cara yang lebih aman.
-            // Metode ini akan secara otomatis menghapus foreign key yang terkait
-            // dengan kolom 'user_id' tanpa perlu tahu nama pastinya.
-            if (Schema::hasColumn('notifications', 'user_id')) {
-                $table->dropForeign(['user_id']);
-                $table->dropColumn('user_id');
-            }
-            
-            // [PERBAIKAN #2] Tambahkan kolom polimorfik dan UUID.
-            // Ini adalah struktur standar untuk notifikasi Laravel.
-            $table->uuid('id')->change(); // Ubah primary key menjadi UUID
+        // 1. Hapus tabel notifikasi yang lama jika ada (Ini adalah langkah kunci)
+        Schema::dropIfExists('notifications');
+
+        // 2. Buat kembali tabel notifikasi dengan struktur polymorphic yang benar
+        Schema::create('notifications', function (Blueprint $table) {
+            $table->uuid('id')->primary();
             $table->string('type');
-            $table->morphs('notifiable'); // Membuat notifiable_type dan notifiable_id
+            $table->morphs('notifiable'); // Membuat notifiable_type & notifiable_id
             $table->text('data');
             $table->timestamp('read_at')->nullable();
-            
-            // Hapus kolom lama yang tidak lagi diperlukan
-            if (Schema::hasColumn('notifications', 'title')) {
-                $table->dropColumn('title');
-            }
-            if (Schema::hasColumn('notifications', 'message')) {
-                $table->dropColumn('message');
-            }
+            $table->timestamps();
         });
     }
 
@@ -45,21 +32,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('notifications', function (Blueprint $table) {
-            // Logika untuk mengembalikan ke kondisi semula jika diperlukan
-            if (Schema::hasColumn('notifications', 'notifiable_type')) {
-                $table->dropMorphs('notifiable');
-            }
-            if (Schema::hasColumn('notifications', 'data')) {
-                $table->dropColumn('data');
-            }
-            if (Schema::hasColumn('notifications', 'read_at')) {
-                $table->dropColumn('read_at');
-            }
-            
-            // Kembalikan kolom user_id
-            if (!Schema::hasColumn('notifications', 'user_id')) {
-                $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            }
+            $table->dropMorphs('notifiable');
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
         });
     }
 };
