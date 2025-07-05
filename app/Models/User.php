@@ -46,6 +46,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            
+            // --- PERBAIKAN UTAMA: Tambahkan casting untuk balance ---
+            // Ini memastikan $user->balance akan selalu menjadi tipe data float (angka desimal).
+            'balance' => 'float',
         ];
     }
 
