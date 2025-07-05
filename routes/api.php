@@ -127,4 +127,7 @@ Route::middleware(['auth:sanctum,babysitter'])->group(function () {
     Route::get('/favorites/ids', [FavoriteController::class, 'getFavoriteIds']);
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::post('/notifications/{notification}/mark-as-read', [NotificationController::class, 'markAsRead']);
+
+    Route::post('/bookings/{booking}/approve', [BookingController::class, 'approve'])->name('bookings.approve');
+    Route::post('/bookings/{booking}/reject', [BookingController::class, 'reject'])->name('bookings.reject');
 });

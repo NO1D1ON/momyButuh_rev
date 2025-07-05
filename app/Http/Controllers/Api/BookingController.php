@@ -221,4 +221,52 @@ class BookingController extends Controller
             return response()->json(['message' => 'Gagal memproses pembayaran: ' . $e->getMessage()], 500);
         }
     }
+
+    public function approve(Request $request, Booking $booking)
+    {
+        $user = Auth::user();
+
+        // Tentukan siapa yang menyetujui dan update kolom yang sesuai
+        if ($user->tokenCan('is_parent')) {
+            $booking->parent_approved = true;
+        } elseif ($user->tokenCan('is_babysitter')) {
+            $booking->babysitter_approved = true;
+        } else {
+            return response()->json(['message' => 'Aksi tidak diizinkan'], 403);
+        }
+
+        // Jika kedua pihak sudah setuju, ubah status menjadi 'confirmed' (sedang berjalan)
+        if ($booking->parent_approved && $booking->babysitter_approved) {
+            $booking->status = 'confirmed';
+        }
+
+        $booking->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Booking berhasil disetujui.',
+            'data' => $booking,
+        ]);
+    }
+
+    /**
+     * Menolak sebuah booking.
+     */
+    public function reject(Request $request, Booking $booking)
+    {
+        // Hanya pihak yang relevan yang bisa menolak
+        $user = Auth::user();
+        if (!$user->tokenCan('is_parent') && !$user->tokenCan('is_babysitter')) {
+             return response()->json(['message' => 'Aksi tidak diizinkan'], 403);
+        }
+
+        $booking->status = 'rejected';
+        $booking->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Booking telah ditolak.',
+            'data' => $booking,
+        ]);
+    }
 }
