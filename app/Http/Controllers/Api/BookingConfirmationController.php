@@ -11,9 +11,6 @@ use Carbon\Carbon;
 
 class BookingConfirmationController extends Controller
 {
-    /**
-     * Konfirmasi penyelesaian pekerjaan dari sisi Orang Tua.
-     */
     public function parentConfirm(Request $request, Booking $booking)
     {
         if (Auth::id() !== $booking->user_id) {
@@ -26,146 +23,119 @@ class BookingConfirmationController extends Controller
         return $this->checkAndFinalizeBooking($booking);
     }
 
-    /**
-     * Konfirmasi penyelesaian pekerjaan dari sisi Babysitter.
-     */
     public function babysitterConfirm(Request $request, Booking $booking)
     {
         if (Auth::id() !== $booking->babysitter_id) {
             return response()->json(['message' => 'Aksi tidak diizinkan.'], 403);
         }
-        
+
         $booking->babysitter_confirmed_at = now();
         $booking->save();
 
         return $this->checkAndFinalizeBooking($booking);
     }
 
-    /**
-     * Memeriksa status konfirmasi dan menyelesaikan booking jika kedua pihak setuju.
-     * Logika diperbaiki untuk menghitung ulang harga dengan benar.
-     */
     private function checkAndFinalizeBooking(Booking $booking)
     {
         if ($booking->parent_confirmed_at && $booking->babysitter_confirmed_at) {
-            
             try {
                 DB::transaction(function () use ($booking) {
                     $parent = $booking->user;
                     $babysitter = $booking->babysitter;
 
-                    // --- PERBAIKAN UTAMA: KALKULASI ULANG HARGA ---
-                    // 1. Hitung durasi kerja dalam jam dari data booking
-                    $startTime = Carbon::parse($booking->start_time);
-                    $endTime = Carbon::parse($booking->end_time);
-                    $durationInHours = $endTime->diffInHours($startTime);
-                    
-                    // Jika durasi kurang dari 1 jam, bulatkan ke 1 jam
-                    if ($durationInHours < 1) {
-                        $durationInHours = 1;
+                    // Validasi harga yang disimpan
+                    $finalPrice = $booking->total_price;
+
+                    // Jika belum dihitung sebelumnya, hitung ulang sekarang
+                    if (!$finalPrice || $finalPrice <= 0) {
+                        $startTime = Carbon::parse($booking->start_time);
+                        $endTime = Carbon::parse($booking->end_time);
+                        $durationInMinutes = $startTime->diffInMinutes($endTime);
+
+                        // Minimal 1 jam
+                        $hours = ceil($durationInMinutes / 60);
+                        if ($hours < 1) $hours = 1;
+
+                        $finalPrice = $hours * (int) $babysitter->rate_per_hour;
+
+                        // Simpan total_price yang baru
+                        $booking->total_price = $finalPrice;
                     }
 
-                    // 2. Hitung total biaya berdasarkan harga per jam babysitter
-                    $calculatedPrice = $durationInHours * $babysitter->price_per_hour;
-                    
-                    // 3. Tentukan harga yang akan digunakan untuk pembayaran
-                    $finalPrice = $calculatedPrice;
-                    
-                    // Jika total_price sudah ada dan valid (> 0), gunakan yang lebih besar
-                    // untuk menghindari kerugian
-                    if ($booking->total_price > 0) {
-                        $finalPrice = max($booking->total_price, $calculatedPrice);
-                    }
-                    
-                    // Update total_price di booking dengan harga final
-                    $booking->total_price = $finalPrice;
-                    
-                    // --- AKHIR PERBAIKAN ---
-
-                    // 4. Validasi: Periksa apakah saldo orang tua mencukupi
-                    if ($parent->balance < $finalPrice) {
-                        throw new \Exception('Saldo orang tua tidak mencukupi untuk pembayaran sebesar Rp ' . number_format($finalPrice, 0, ',', '.'));
+                    // Validasi saldo parent
+                    if ((int) $parent->balance < $finalPrice) {
+                        throw new \Exception('Saldo orang tua tidak mencukupi untuk membayar Rp ' . number_format($finalPrice, 0, ',', '.'));
                     }
 
-                    // 5. Kurangi saldo orang tua
+                    // Proses pembayaran
                     $parent->decrement('balance', $finalPrice);
-
-                    // 6. Tambah saldo babysitter
                     $babysitter->increment('balance', $finalPrice);
 
-                    // 7. Ubah status booking menjadi 'completed'
+                    // Tandai booking sebagai selesai
                     $booking->status = 'completed';
                     $booking->save();
-                    
-                    // Log untuk debugging (opsional)
-                    \Log::info('Booking completed', [
+
+                    \Log::info('Booking selesai dan pembayaran berhasil.', [
                         'booking_id' => $booking->id,
-                        'duration_hours' => $durationInHours,
-                        'price_per_hour' => $babysitter->price_per_hour,
-                        'total_paid' => $finalPrice,
-                        'parent_balance_remaining' => $parent->balance,
-                        'babysitter_balance_new' => $babysitter->balance
+                        'total_price' => $finalPrice,
+                        'duration' => $hours . ' jam',
+                        'rate_per_hour' => $babysitter->rate_per_hour,
+                        'user_balance' => $parent->balance,
+                        'babysitter_balance' => $babysitter->balance,
                     ]);
                 });
 
-                // Refresh booking untuk mendapatkan data terbaru
                 $booking->refresh();
 
-                // Jika transaksi berhasil, kembalikan pesan sukses dengan nominal yang benar
                 return response()->json([
                     'status' => 'completed',
-                    'message' => 'Pesanan telah selesai dan pembayaran sebesar Rp ' . number_format($booking->total_price, 0, ',', '.') . ' telah berhasil diproses!',
+                    'message' => 'Pesanan selesai. Pembayaran sebesar Rp ' . number_format($booking->total_price, 0, ',', '.') . ' berhasil diproses.',
                     'payment_details' => [
                         'amount_paid' => $booking->total_price,
                         'formatted_amount' => 'Rp ' . number_format($booking->total_price, 0, ',', '.'),
                         'booking_id' => $booking->id,
-                        'completed_at' => now()->format('Y-m-d H:i:s')
+                        'completed_at' => now()->toDateTimeString()
                     ]
                 ]);
 
             } catch (\Exception $e) {
                 return response()->json([
                     'status' => 'failed',
-                    'message' => $e->getMessage()
+                    'message' => 'Gagal menyelesaikan booking: ' . $e->getMessage()
                 ], 422);
             }
         }
 
         return response()->json([
             'status' => 'pending_confirmation',
-            'message' => 'Konfirmasi Anda berhasil. Menunggu persetujuan dari pihak lain untuk menyelesaikan pembayaran.'
+            'message' => 'Konfirmasi berhasil. Menunggu persetujuan pihak lainnya.'
         ]);
     }
-    
-    /**
-     * Method tambahan untuk mendapatkan detail pembayaran booking (opsional)
-     */
+
     public function getPaymentDetails(Booking $booking)
     {
-        // Pastikan user berhak mengakses booking ini
         if (Auth::id() !== $booking->user_id && Auth::id() !== $booking->babysitter_id) {
-            return response()->json(['message' => 'Aksi tidak diizinkan.'], 403);
+            return response()->json(['message' => 'Akses tidak diizinkan.'], 403);
         }
-        
+
         $startTime = Carbon::parse($booking->start_time);
         $endTime = Carbon::parse($booking->end_time);
-        $durationInHours = $endTime->diffInHours($startTime);
-        
-        if ($durationInHours < 1) {
-            $durationInHours = 1;
-        }
-        
+        $minutes = $startTime->diffInMinutes($endTime);
+        $hours = ceil($minutes / 60);
+        if ($hours < 1) $hours = 1;
+
         $babysitter = $booking->babysitter;
-        $calculatedPrice = $durationInHours * $babysitter->price_per_hour;
-        
+        $calculatedPrice = $hours * (int) $babysitter->rate_per_hour;
+        $finalPrice = max($booking->total_price, $calculatedPrice);
+
         return response()->json([
             'booking_id' => $booking->id,
-            'duration_hours' => $durationInHours,
-            'price_per_hour' => $babysitter->price_per_hour,
+            'duration_hours' => $hours,
+            'rate_per_hour' => $babysitter->rate_per_hour,
             'calculated_price' => $calculatedPrice,
             'stored_total_price' => $booking->total_price,
-            'final_price' => max($booking->total_price > 0 ? $booking->total_price : 0, $calculatedPrice),
-            'formatted_final_price' => 'Rp ' . number_format(max($booking->total_price > 0 ? $booking->total_price : 0, $calculatedPrice), 0, ',', '.'),
+            'final_price' => $finalPrice,
+            'formatted_final_price' => 'Rp ' . number_format($finalPrice, 0, ',', '.'),
             'status' => $booking->status
         ]);
     }
