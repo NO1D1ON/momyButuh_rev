@@ -110,42 +110,55 @@ class MessageController extends Controller
      * Menyimpan pesan baru dan menyiarkannya secara real-time.
      */
     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'body' => 'required|string|max:1000',
-            'receiver_id' => 'required|integer',
-        ]);
+{
+    $sender = $request->user();
 
-        $sender = $request->user();
-
-        $userId = null;
-        $babysitterId = null;
-
-        if ($sender instanceof \App\Models\User) {
-            $userId = $sender->id;
-            $babysitterId = $validated['receiver_id'];
-        } elseif ($sender instanceof \App\Models\Babysitter) {
-            $userId = $validated['receiver_id'];
-            $babysitterId = $sender->id;
-        } else {
-            return response()->json(['message' => 'Tipe pengirim tidak valid'], 400);
-        }
-        
-        $conversation = Conversation::firstOrCreate([
-            'user_id' => $userId,
-            'babysitter_id' => $babysitterId,
-        ]);
-
-        $message = $conversation->messages()->create([
-            'sender_id' => $sender->id,
-            'sender_type' => get_class($sender),
-            'body' => $validated['body'],
-        ]);
-
-        broadcast(new MessageSent($message))->toOthers();
-
-        return response()->json($message->load('sender:id,name'), 201);
+    // Tentukan tabel receiver berdasarkan siapa pengirimnya
+    if ($sender instanceof \App\Models\User) {
+        $receiverTable = 'babysitters';
+    } elseif ($sender instanceof \App\Models\Babysitter) {
+        $receiverTable = 'users';
+    } else {
+        return response()->json(['message' => 'Tipe pengirim tidak valid'], 400);
     }
+
+    // Validasi input, termasuk memeriksa apakah receiver_id ada di tabel yang benar
+    $validated = $request->validate([
+        'body' => 'required|string|max:1000',
+        'receiver_id' => 'required|integer|exists:' . $receiverTable . ',id',
+    ], [
+        // Pesan error kustom agar lebih jelas
+        'receiver_id.exists' => 'Pengguna penerima tidak ditemukan.',
+    ]);
+
+    // Logika untuk menentukan user_id dan babysitter_id
+    if ($sender instanceof \App\Models\User) {
+        $userId = $sender->id;
+        $babysitterId = $validated['receiver_id'];
+    } else { // Jika pengirim adalah Babysitter
+        $userId = $validated['receiver_id'];
+        $babysitterId = $sender->id;
+    }
+
+    // Temukan atau buat percakapan baru
+    $conversation = Conversation::firstOrCreate([
+        'user_id' => $userId,
+        'babysitter_id' => $babysitterId,
+    ]);
+
+    // Buat pesan baru dalam percakapan
+    $message = $conversation->messages()->create([
+        'sender_id' => $sender->id,
+        'sender_type' => get_class($sender),
+        'body' => $validated['body'],
+    ]);
+
+    // Siarkan event bahwa ada pesan baru
+    broadcast(new \App\Events\MessageSent($message))->toOthers();
+
+    // Kembalikan response sukses beserta data pesan yang baru dibuat
+    return response()->json($message->load('sender:id,name'), 201);
+}
     
     /**
      * Mengambil riwayat pesan untuk sebuah percakapan.
