@@ -12,18 +12,18 @@ class BabysitterBookingController extends Controller
      * Mengambil riwayat booking untuk babysitter yang sedang login.
      * Versi ini sudah diperbaiki untuk menangani data relasi yang hilang.
      */
-    public function index(Request $request)
+    public function index()
     {
         $babysitter = Auth::user();
 
         $bookings = $babysitter->bookings()
-            // PERUBAHAN: Minta juga data 'address' dari relasi user
             ->with('user:id,name,address') 
-            ->whereIn('status', ['confirmed', 'completed'])
-            ->latest('booking_date')
+            ->whereIn('status', ['pending', 'confirmed', 'completed', 'rejected', 'parent_confirmed'])
+            ->orderBy('booking_date', 'desc')
             ->get();
-        
-        // Sekarang, Laravel akan secara otomatis menyertakan alamat user di setiap booking
+
+        // --- PERBAIKAN DI SINI ---
+        // Langsung kembalikan collection $bookings. Laravel akan otomatis mengubahnya menjadi JSON Array.
         return response()->json($bookings);
     }
 }

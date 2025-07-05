@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // Import trait otorisasi
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class BookingController extends Controller
 {
@@ -22,68 +23,82 @@ class BookingController extends Controller
     {
         $validated = $request->validated();
         $parent = $request->user();
-        $babysitter = \App\Models\Babysitter::findOrFail($validated['babysitter_id']);
 
+        // 1. Ambil data babysitter untuk mendapatkan rate per jam
+        $babysitter = \App\Models\Babysitter::find($validated['babysitter_id']);
+        if (!$babysitter) {
+            return response()->json(['message' => 'Babysitter tidak ditemukan.'], 404);
+        }
+
+        // 2. Gabungkan tanggal dan jam ke format penuh
         $startTime = Carbon::parse($validated['booking_date'] . ' ' . $validated['start_time']);
         $endTime = Carbon::parse($validated['booking_date'] . ' ' . $validated['end_time']);
 
-        // Cek jadwal yang tumpang tindih
-        $existingBooking = Booking::where('babysitter_id', $babysitter->id)
+        // 3. Jika waktu selesai lebih awal dari mulai, berarti booking lewat tengah malam
+        if ($startTime->greaterThanOrEqualTo($endTime)) {
+            $endTime->addDay();
+        }
+
+        // 4. Validasi durasi minimal
+        $durationInHours = $endTime->diffInHours($startTime);
+        if ($durationInHours == 0) {
+            $durationInHours = 1;
+        }
+
+        // 5. Cek tabrakan jadwal dengan booking confirmed
+        $hasConflict = Booking::where('babysitter_id', $babysitter->id)
             ->where('booking_date', $validated['booking_date'])
             ->where(function ($query) use ($startTime, $endTime) {
                 $query->where(function ($q) use ($startTime, $endTime) {
                     $q->where('start_time', '<', $endTime->toTimeString())
-                      ->where('end_time', '>', $startTime->toTimeString());
+                    ->where('end_time', '>', $startTime->toTimeString());
                 });
             })
             ->where('status', 'confirmed')
             ->exists();
 
-        if ($existingBooking) {
-            return response()->json(['message' => 'Jadwal babysitter pada tanggal dan jam tersebut sudah terisi.'], 409);
+        if ($hasConflict) {
+            return response()->json(['message' => 'Jadwal babysitter pada waktu tersebut sudah terisi.'], 409);
         }
 
-        if ($startTime->greaterThanOrEqualTo($endTime)) {
-            $endTime->addDay();
-        }
+        // 6. Hitung total harga
+        $totalPrice = $durationInHours * (int) $babysitter->rate_per_hour;
 
-        $minutes = $startTime->diffInMinutes($endTime);
-        
-        if ($minutes < 30) {
-            return response()->json(['message' => 'Durasi booking minimal adalah 30 menit.'], 422);
-        }
-
-        // --- PERBAIKAN PERHITUNGAN HARGA ---
-        $hours = ceil($minutes / 60);
-        // Lakukan casting (int) untuk memastikan tipe data benar sebelum perkalian
-        $totalPrice = (int) $hours * (int) $babysitter->rate_per_hour;
-        
+        // 7. Cek saldo orang tua
         if ((int) $parent->balance < $totalPrice) {
             return response()->json(['message' => 'Saldo Anda tidak mencukupi.'], 422);
         }
 
         try {
-            DB::transaction(function () use ($parent, $totalPrice, $validated, $babysitter) {
-                // Kurangi saldo parent (saldo ditahan sementara oleh sistem)
+            // 8. Simpan data booking dalam transaksi
+            $booking = DB::transaction(function () use ($parent, $validated, $babysitter, $totalPrice) {
+                // Tahan saldo
                 $parent->decrement('balance', $totalPrice);
-                
-                Booking::create([
-                    'user_id' => $parent->id,
-                    'babysitter_id' => $babysitter->id,
-                    'booking_date' => $validated['booking_date'],
-                    'start_time' => $validated['start_time'],
-                    'end_time' => $validated['end_time'],
-                    'total_price' => $totalPrice,
-                    'status' => 'confirmed', // Status awal, bisa juga 'pending' jika butuh approval babysitter
+
+                // Buat booking dengan status awal
+                return Booking::create([
+                    'user_id'             => $parent->id,
+                    'babysitter_id'       => $babysitter->id,
+                    'booking_date'        => $validated['booking_date'],
+                    'start_time'          => $validated['start_time'],
+                    'end_time'            => $validated['end_time'],
+                    'total_price'         => $totalPrice,
+                    'status'              => 'pending',
+                    'parent_approved'     => true,
+                    'babysitter_approved' => false,
                 ]);
             });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Booking berhasil dibuat dan menunggu persetujuan babysitter.',
+                'data' => $booking,
+            ], 201);
+
         } catch (\Exception $e) {
             return response()->json(['message' => 'Gagal membuat booking: ' . $e->getMessage()], 500);
         }
-
-        return response()->json(['message' => 'Booking berhasil dibuat.'], 201);
     }
-
     /**
      * --- METODE YANG DITAMBAHKAN KEMBALI ---
      * Mengambil riwayat booking milik pengguna yang sedang login.
@@ -226,26 +241,29 @@ class BookingController extends Controller
     {
         $user = Auth::user();
 
-        // Tentukan siapa yang menyetujui dan update kolom yang sesuai
-        if ($user->tokenCan('is_parent')) {
-            $booking->parent_approved = true;
-        } elseif ($user->tokenCan('is_babysitter')) {
-            $booking->babysitter_approved = true;
+        // 1. Perbarui persetujuan berdasarkan tipe user
+        if ($user instanceof \App\Models\Babysitter) {
+            $booking->update(['babysitter_approved' => true]);
+        } elseif ($user instanceof \App\Models\User) {
+            $booking->update(['parent_approved' => true]);
         } else {
-            return response()->json(['message' => 'Aksi tidak diizinkan'], 403);
+            return response()->json(['message' => 'Tipe pengguna tidak dikenali.'], 400);
         }
 
-        // Jika kedua pihak sudah setuju, ubah status menjadi 'confirmed' (sedang berjalan)
-        if ($booking->parent_approved && $booking->babysitter_approved) {
-            $booking->status = 'confirmed';
+        // 2. Muat ulang state booking dari database untuk memastikan data valid
+        $currentBookingState = $booking->fresh();
+
+        // 3. Periksa apakah kedua pihak sudah setuju berdasarkan data terbaru
+        if ($currentBookingState->parent_approved && $currentBookingState->babysitter_approved) {
+            // Jika ya, ubah status menjadi 'confirmed'
+            $currentBookingState->update(['status' => 'confirmed']);
         }
 
-        $booking->save();
-
+        // 4. Kembalikan data yang paling akhir
         return response()->json([
             'success' => true,
             'message' => 'Booking berhasil disetujui.',
-            'data' => $booking,
+            'data' => $currentBookingState, // Mengembalikan state yang sudah divalidasi
         ]);
     }
 
@@ -268,5 +286,29 @@ class BookingController extends Controller
             'message' => 'Booking telah ditolak.',
             'data' => $booking,
         ]);
+    }
+
+    public function cancel(Request $request, Booking $booking)
+    {
+        $user = Auth::user();
+
+        // Validasi:
+        // 1. Hanya user yang membuat booking yang bisa membatalkan.
+        // 2. Hanya bisa dibatalkan jika status masih 'pending'.
+        if ($booking->user_id !== $user->id) {
+            return response()->json(['message' => 'Anda tidak memiliki izin untuk membatalkan booking ini.'], 403);
+        }
+
+        if ($booking->status !== 'pending') {
+            return response()->json(['message' => 'Booking ini tidak dapat dibatalkan lagi.'], 422);
+        }
+
+        // Hapus booking dari database
+        $booking->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Booking berhasil dibatalkan dan dihapus.'
+        ], 200);
     }
 }
