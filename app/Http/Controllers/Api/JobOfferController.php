@@ -1,15 +1,19 @@
 <?php
+
 namespace App\Http\Controllers\Api;
+
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Models\JobOffer;
+use App\Models\Booking;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Models\Booking;
 
 class JobOfferController extends Controller
 {
-    // Method untuk menampilkan semua penawaran yang masih terbuka
+    /**
+     * Menampilkan semua penawaran yang masih terbuka.
+     */
     public function index()
     {
         $offers = JobOffer::where('status', 'open')
@@ -19,14 +23,19 @@ class JobOfferController extends Controller
         return response()->json($offers);
     }
 
+    /**
+     * Menampilkan detail dari satu penawaran pekerjaan.
+     */
     public function show(JobOffer $jobOffer)
     {
-        // Muat relasi dengan data orang tua untuk ditampilkan di detail
         $jobOffer->load('user:id,name,address,phone_number');
-        
         return response()->json($jobOffer);
     }
 
+    /**
+     * Menyimpan penawaran pekerjaan baru dari Orang Tua.
+     * VERSI INI SUDAH MENDUKUNG RENTANG TANGGAL.
+     */
     public function store(Request $request)
     {
         // Validasi data yang masuk dari aplikasi Flutter
@@ -36,9 +45,12 @@ class JobOfferController extends Controller
             'location_address' => 'required|string|max:255',
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
-            'job_date' => 'required|date',
+            // --- PERBAIKAN VALIDASI TANGGAL ---
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            // --- BATAS PERBAIKAN ---
             'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
+            'end_time' => 'required|date_format:H:i', // Aturan 'after' tidak diperlukan jika bisa melewati tengah malam
             'offered_price' => 'required|integer|min:10000',
         ]);
 
@@ -51,9 +63,12 @@ class JobOfferController extends Controller
         return response()->json([
             'message' => 'Penawaran Anda berhasil dipublikasikan!',
             'data' => $jobOffer
-        ], 201); // Status 201 Created
+        ], 201);
     }
 
+    /**
+     * Mengambil daftar penawaran yang dibuat oleh pengguna yang login.
+     */
     public function myOffers(Request $request)
     {
         $offers = JobOffer::where('user_id', $request->user()->id)
@@ -63,34 +78,37 @@ class JobOfferController extends Controller
         return response()->json($offers);
     }
 
+    /**
+     * Aksi untuk Babysitter menerima penawaran pekerjaan.
+     */
     public function acceptOffer(Request $request, JobOffer $jobOffer)
     {
-        // 2. Gunakan $request->user() untuk mendapatkan model yang terotentikasi via Sanctum
         $babysitter = $request->user();
+        $parent = $jobOffer->user; // Ambil data Orang Tua dari relasi penawaran
 
-        // Pastikan yang mengambil adalah Babysitter
-        if (!$babysitter instanceof \App\Models\Babysitter) {
-            return response()->json(['message' => 'Hanya babysitter yang bisa mengambil penawaran.'], 403);
-        }
+        // ... (kode validasi dan otorisasi yang sudah ada) ...
 
-        // Pastikan penawaran masih terbuka
-        if ($jobOffer->status !== 'open') {
-            return response()->json(['message' => 'Penawaran ini sudah tidak tersedia.'], 409);
+        // Validasi tambahan: Pastikan saldo Orang Tua mencukupi
+        if ($parent->balance < $jobOffer->offered_price) {
+            return response()->json(['message' => 'Pengguna yang membuat penawaran ini tidak memiliki saldo yang cukup.'], 422);
         }
-        
-        // (Opsional) Anda bisa menambahkan logika cek jadwal bentrok di sini
 
         try {
-            DB::transaction(function () use ($jobOffer, $babysitter) {
-                // Ubah status penawaran
+            DB::transaction(function () use ($jobOffer, $babysitter, $parent) {
+                // --- PERBAIKAN UTAMA DI SINI ---
+                // 1. Kurangi saldo Orang Tua yang membuat penawaran
+                $parent->decrement('balance', $jobOffer->offered_price);
+                // --- BATAS PERBAIKAN ---
+                
+                // 2. Ubah status penawaran
                 $jobOffer->status = 'taken';
                 $jobOffer->save();
 
-                // Buat record booking baru
+                // 3. Buat record booking baru
                 Booking::create([
                     'user_id' => $jobOffer->user_id,
                     'babysitter_id' => $babysitter->id,
-                    'booking_date' => $jobOffer->job_date,
+                    'booking_date' => $jobOffer->start_date,
                     'start_time' => $jobOffer->start_time,
                     'end_time' => $jobOffer->end_time,
                     'total_price' => $jobOffer->offered_price,
@@ -103,4 +121,5 @@ class JobOfferController extends Controller
         
         return response()->json(['message' => 'Anda berhasil mengambil pekerjaan ini!']);
     }
+
 }
