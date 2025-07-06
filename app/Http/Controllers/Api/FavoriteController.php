@@ -33,12 +33,9 @@ class FavoriteController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-
         // Ambil SEMUA DATA babysitter yang terkait melalui relasi 'favorites'
         $favoriteBabysitters = $user->favorites()->get();
-
-        // Gunakan BabysitterResource untuk memformat hasilnya agar konsisten
-        // dengan endpoint API lainnya.
+        // Gunakan BabysitterResource untuk memformat hasilnya
         return BabysitterResource::collection($favoriteBabysitters);
     }
 
