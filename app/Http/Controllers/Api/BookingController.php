@@ -12,6 +12,7 @@ use App\Http\Requests\Api\StoreBookingRequest;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log; // Pastikan Log di-import
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -52,6 +53,11 @@ class BookingController extends Controller
 
     public function store(StoreBookingRequest $request)
     {
+        // --- PENGECEKAN ID PENGGUNA UNTUK DIAGNOSIS ---
+        // Baris ini akan mencatat ID pengguna yang sedang login ke file log.
+        Log::info('BOOKING ATTEMPT: Permintaan booking diterima dari User ID: ' . $request->user()->id);
+        // --- AKHIR DARI PENGECEKAN ---
+
         $validated = $request->validated();
         
         try {
@@ -71,19 +77,9 @@ class BookingController extends Controller
             $result = DB::transaction(function () use ($request, $validated, $totalPrice) {
                 $parent = User::lockForUpdate()->findOrFail($request->user()->id);
 
-                // --- PENGECEKAN SPESIFIK UNTUK DEBUGGING ---
-                $currentBalance = $parent->balance;
-                $balanceType = gettype($currentBalance);
-                $priceType = gettype($totalPrice);
-
-                if ($currentBalance < $totalPrice) {
-                    // Lemparkan pesan error yang sangat detail untuk diagnosis
-                    throw new Exception(
-                        "Pengecekan Saldo Gagal. Saldo Saat Ini: $currentBalance (Tipe: $balanceType), " .
-                        "Harga Booking: $totalPrice (Tipe: $priceType). Saldo tidak mencukupi."
-                    );
+                if ($parent->balance < $totalPrice) {
+                    throw new Exception('Saldo Anda tidak mencukupi.');
                 }
-                // --- AKHIR DARI PENGECEKAN ---
 
                 $babysitter = Babysitter::findOrFail($validated['babysitter_id']);
                 
@@ -112,7 +108,6 @@ class BookingController extends Controller
             );
 
         } catch (Exception $e) {
-            // Respons error sekarang akan berisi pesan yang lebih detail
             return response()->json(['message' => 'Gagal membuat booking: ' . $e->getMessage()], 500);
         }
     }
@@ -288,7 +283,7 @@ class BookingController extends Controller
             });
 
             return $this->buildSuccessResponse(
-                'Booking telah ditolak dan saldo telah dikembalikan ke orang tua.',
+                'Booking telah ditolak',
                 $booking->fresh(),
                 $parent
             );

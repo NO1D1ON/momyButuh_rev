@@ -57,6 +57,29 @@ Route::get('/babysitter-availabilities', [BabysitterAvailabilityController::clas
 // dan 'babysitter'. Ini penting untuk otorisasi broadcasting.
 Route::middleware(['auth:sanctum,babysitter'])->group(function () {
 
+    Route::get('/user', function (Request $request) {
+        // Log user yang mengakses endpoint ini untuk perbandingan
+        Log::info('API ROUTE HIT: /api/user by User ID: ' . $request->user()->id);
+        return $request->user();
+    });
+
+    Route::post('/bookings', function (Request $request) {
+        
+        // 1. Log ID pengguna yang terotentikasi saat ini
+        $userId = $request->user() ? $request->user()->id : '!! TIDAK TEROTENTIKASI !!';
+        Log::info('================================================');
+        Log::info('DIAGNOSIS BOOKING: Rute /api/bookings diakses.');
+        Log::info('--> User ID yang terdeteksi oleh Sanctum: ' . $userId);
+        
+        // 2. Log seluruh data yang dikirim dari aplikasi Anda
+        Log::info('--> Payload (Data yang Dikirim): ' . json_encode($request->all()));
+        Log::info('================================================');
+
+        // 3. Setelah logging, teruskan permintaan ke controller yang sebenarnya
+        // Kita gunakan app() untuk memastikan FormRequest di-handle dengan benar
+        return app(BookingController::class)->store(app(\App\Http\Requests\Api\StoreBookingRequest::class));
+    });
+
     // --- PROFIL & LOGOUT ---
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -130,5 +153,8 @@ Route::middleware(['auth:sanctum,babysitter'])->group(function () {
 
     Route::post('/bookings/{booking}/approve', [BookingController::class, 'approve'])->name('bookings.approve');
     Route::post('/bookings/{booking}/reject', [BookingController::class, 'reject'])->name('bookings.reject');
-    Route::delete('/bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
+    Route::get('/debug/balance', [BookingController::class, 'checkBalance']);
+Route::post('/debug/reset-balance', [BookingController::class, 'resetBalance']);
+
+
 });
