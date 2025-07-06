@@ -11,8 +11,8 @@ class BabysitterAvailability extends Model
 
     /**
      * The attributes that are mass assignable.
-     * PASTIKAN SEMUA KOLOM INI ADA.
-     * @var array
+     *
+     * @var array<int, string>
      */
     protected $fillable = [
         'babysitter_id',
@@ -22,12 +22,24 @@ class BabysitterAvailability extends Model
         'rate_per_hour',
         'location_preference',
         'notes',
-        'latitude', 
-        'longitude', 
+        'latitude',
+        'longitude',
     ];
 
     /**
-     * Mendefinisikan relasi ke model Babysitter.
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'available_date' => 'date',
+        'rate_per_hour' => 'float',
+        'latitude' => 'float',
+        'longitude' => 'float',
+    ];
+
+    /**
+     * Get the babysitter that owns the availability.
      */
     public function babysitter()
     {

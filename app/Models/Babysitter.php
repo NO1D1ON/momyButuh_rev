@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-// use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -12,14 +11,21 @@ use App\Models\Service;
 use App\Models\AvailableSchedule;
 use App\Models\Conversation;
 use App\Models\Booking;
-use App\Models\Message; // Import HasApiTokens
+use App\Models\Message;
+use App\Models\BabysitterAvailability;
 use Carbon\Carbon;
 
 class Babysitter extends Authenticatable
 {
-    use HasFactory, HasApiTokens; // Tambahkan HasApiTokens
+    use HasFactory, HasApiTokens, Notifiable;
 
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array
+     */
     protected $appends = ['age'];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -31,25 +37,73 @@ class Babysitter extends Authenticatable
         'experience_years', 'is_available', 'balance', 'email_verified_at',
     ];
 
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    public function bookings() {
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'birth_date' => 'date',
+        'rate_per_hour' => 'integer',
+        'experience_years' => 'integer',
+        'balance' => 'float',
+        'rating' => 'float',
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'is_available' => 'boolean',
+    ];
+
+    /**
+     * Get the user's age.
+     *
+     * @return int
+     */
+    public function getAgeAttribute()
+    {
+        if ($this->birth_date) {
+            return Carbon::parse($this->birth_date)->age;
+        }
+        return 0; // Default value if birth_date is not set
+    }
+
+    /**
+     * Get the bookings for the babysitter.
+     */
+    public function bookings()
+    {
         return $this->hasMany(Booking::class);
     }
 
-    public function conversations() { return $this->hasMany(Conversation::class); }
-
-
-    public function messages()
+    /**
+     * Get the conversations for the babysitter.
+     */
+    public function conversations()
     {
-        return $this->morphMany(\App\Models\Message::class, 'sender');
+        return $this->hasMany(Conversation::class);
     }
 
-     /**
-     * Relasi ke Review: Seorang babysitter bisa memiliki banyak review.
+    /**
+     * Get all of the babysitter's messages.
+     */
+    public function messages()
+    {
+        return $this->morphMany(Message::class, 'sender');
+    }
+
+    /**
+     * Get the reviews for the babysitter.
      */
     public function reviews()
     {
@@ -57,31 +111,25 @@ class Babysitter extends Authenticatable
     }
 
     /**
-     * Relasi ke Service: Seorang babysitter bisa menawarkan banyak service.
-     * Diasumsikan ini adalah relasi many-to-many.
+     * The services that belong to the babysitter.
      */
     public function services()
     {
-        // Sesuaikan dengan nama tabel pivot Anda jika berbeda (contoh: 'babysitter_service')
         return $this->belongsToMany(Service::class);
     }
 
     /**
-     * Relasi ke Jadwal Tersedia: Seorang babysitter memiliki banyak jadwal tersedia.
+     * Get the available schedules for the babysitter.
+     * @deprecated Use availabilities() instead.
      */
     public function availableSchedules()
     {
         return $this->hasMany(AvailableSchedule::class);
     }
 
-    public function getAgeAttribute() // TAMBAHKAN FUNGSI INI
-    {
-        if ($this->birth_date) {
-            return Carbon::parse($this->birth_date)->age;
-        }
-        return 0; // Beri nilai default jika tanggal lahir tidak ada
-    }
-
+    /**
+     * Get the availabilities for the babysitter.
+     */
     public function availabilities()
     {
         return $this->hasMany(BabysitterAvailability::class);
