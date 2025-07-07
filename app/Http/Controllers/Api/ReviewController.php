@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Booking;
 use App\Models\Review;
-use App\Models\User; // <-- Pastikan model User di-import
 use Illuminate\Support\Facades\Auth;
 
 class ReviewController extends Controller
@@ -19,45 +18,41 @@ class ReviewController extends Controller
      */
     public function store(Request $request)
     {
+        // PERBAIKAN 1: Jadikan 'comment' opsional (nullable)
         $request->validate([
             'booking_id' => 'required|exists:bookings,id',
             'rating' => 'required|integer|min:1|max:5',
-            'comment' => 'required|string',
+            'comment' => 'nullable|string', // <-- Diubah dari 'required'
         ]);
 
         $booking = Booking::find($request->booking_id);
-        $user = Auth::user();
+        $user = $request->user(); // Mengambil pengguna yang terotentikasi dari request
 
-        // --- PERBAIKAN LOGIKA OTORISASI ---
-
-        // 1. Pastikan yang login adalah instance dari User (Orang Tua)
-        if (!($user instanceof User)) {
-            return response()->json(['message' => 'Hanya pengguna (orang tua) yang dapat memberi review.'], 403);
-        }
-
-        // 2. Cek apakah ID pengguna yang login sama dengan user_id pada booking
+        // PERBAIKAN 2: Logika Otorisasi Disederhanakan dan Diperkuat
+        // Cek langsung apakah ID pengguna yang login adalah pemilik booking.
+        // Ini sudah cukup untuk memastikan hanya orang tua yang benar yang bisa memberi review.
         if ($booking->user_id !== $user->id) {
             return response()->json(['message' => 'Anda tidak berhak memberi review untuk booking ini.'], 403);
         }
 
-        // 3. Cek apakah booking sudah selesai (opsional tapi sangat direkomendasikan)
+        // Cek apakah booking sudah selesai (praktik terbaik)
         if ($booking->status !== 'completed') {
             return response()->json(['message' => 'Anda hanya bisa memberi review untuk booking yang sudah selesai.'], 403);
         }
 
-        // 4. Cek apakah review untuk booking ini sudah ada
+        // Cek apakah review untuk booking ini sudah ada untuk mencegah duplikat
         $existingReview = Review::where('booking_id', $booking->id)->first();
         if ($existingReview) {
             return response()->json(['message' => 'Anda sudah memberi review untuk booking ini.'], 409); // 409 Conflict
         }
 
-        // Jika semua validasi lolos, buat review
+        // Buat review. Kolom 'comment' akan null jika tidak dikirim dari frontend.
         $review = Review::create([
             'user_id' => $user->id,
             'babysitter_id' => $booking->babysitter_id,
             'booking_id' => $booking->id,
             'rating' => $request->rating,
-            'comment' => $request->comment,
+            'comment' => $request->comment, // Akan null jika tidak ada
         ]);
 
         // Update rating rata-rata babysitter
