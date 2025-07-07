@@ -1,68 +1,47 @@
 <?php
-
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Booking;
 use App\Models\Review;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 
 class ReviewController extends Controller
 {
-    /**
-     * Store a newly created review in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function store(Request $request)
     {
-        // PERBAIKAN 1: Jadikan 'comment' opsional (nullable)
-        $request->validate([
+        $validated = $request->validate([
             'booking_id' => 'required|exists:bookings,id',
             'rating' => 'required|integer|min:1|max:5',
-            'comment' => 'nullable|string', // <-- Diubah dari 'required'
+            'comment' => 'nullable|string',
         ]);
 
-        $booking = Booking::find($request->booking_id);
-        $user = $request->user(); // Mengambil pengguna yang terotentikasi dari request
+        $user = $request->user();
+        $booking = Booking::findOrFail($validated['booking_id']);
 
-        // PERBAIKAN 2: Logika Otorisasi Disederhanakan dan Diperkuat
-        // Cek langsung apakah ID pengguna yang login adalah pemilik booking.
-        // Ini sudah cukup untuk memastikan hanya orang tua yang benar yang bisa memberi review.
+        // Otorisasi: Pastikan yang memberi review adalah user yang memesan
         if ($booking->user_id !== $user->id) {
             return response()->json(['message' => 'Anda tidak berhak memberi review untuk booking ini.'], 403);
         }
 
-        // Cek apakah booking sudah selesai (praktik terbaik)
+        // Pastikan booking sudah selesai
         if ($booking->status !== 'completed') {
-            return response()->json(['message' => 'Anda hanya bisa memberi review untuk booking yang sudah selesai.'], 403);
+            return response()->json(['message' => 'Booking belum selesai.'], 422);
+        }
+        
+        // Pastikan booking belum pernah direview
+        if (Review::where('booking_id', $booking->id)->exists()) {
+            return response()->json(['message' => 'Booking ini sudah pernah Anda review.'], 422);
         }
 
-        // Cek apakah review untuk booking ini sudah ada untuk mencegah duplikat
-        $existingReview = Review::where('booking_id', $booking->id)->first();
-        if ($existingReview) {
-            return response()->json(['message' => 'Anda sudah memberi review untuk booking ini.'], 409); // 409 Conflict
-        }
-
-        // Buat review. Kolom 'comment' akan null jika tidak dikirim dari frontend.
         $review = Review::create([
+            'booking_id' => $booking->id,
             'user_id' => $user->id,
             'babysitter_id' => $booking->babysitter_id,
-            'booking_id' => $booking->id,
-            'rating' => $request->rating,
-            'comment' => $request->comment, // Akan null jika tidak ada
+            'rating' => $validated['rating'],
+            'comment' => $validated['comment'] ?? null,
         ]);
 
-        // Update rating rata-rata babysitter
-        $babysitter = $booking->babysitter;
-        $babysitter->rating = $babysitter->reviews()->avg('rating');
-        $babysitter->save();
-
-        return response()->json([
-            'message' => 'Review berhasil dikirim!',
-            'review' => $review
-        ], 201);
+        return response()->json(['message' => 'Terima kasih atas ulasan Anda.', 'data' => $review], 201);
     }
 }
