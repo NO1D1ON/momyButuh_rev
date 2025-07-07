@@ -20,7 +20,9 @@
             <tbody>
                 @forelse ($topups as $topup)
                 <tr class="border-b border-pink-200 hover:bg-pink-200">
-                    <td class="px-6 py-4 font-medium text-gray-900">{{ $topup->user->name }}</td>
+                    <td class="px-6 py-4 font-medium text-gray-900">
+                        {{ $topup->user->name ?? '[Tidak ada permintaan Top Up]' }}
+                    </td>
                     <td class="px-6 py-4">Rp {{ number_format($topup->amount, 0, ',', '.') }}</td>
                     <td class="px-6 py-4">
                         @if($topup->payment_proof)

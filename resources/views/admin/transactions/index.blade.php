@@ -19,12 +19,12 @@
 
     <div id="transaction-tabs-content">
         {{-- Konten Tab Pemesanan --}}
-        <div class="hidden p-4 bg-white rounded-lg shadow" id="bookings" role="tabpanel" aria-labelledby="bookings-tab">
+        <div class="p-4 bg-white rounded-lg shadow" id="bookings" role="tabpanel" aria-labelledby="bookings-tab">
             @include('admin.bookings._table', ['bookings' => $bookings])
         </div>
 
         {{-- Konten Tab Top Up --}}
-        <div class="hidden p-4 bg-white rounded-lg shadow" id="topups" role="tabpanel" aria-labelledby="topups-tab">
+        <div class="p-4 bg-white rounded-lg shadow" id="topups" role="tabpanel" aria-labelledby="topups-tab">
             @include('admin.topups._table', ['topups' => $topups])
         </div>
     </div>
