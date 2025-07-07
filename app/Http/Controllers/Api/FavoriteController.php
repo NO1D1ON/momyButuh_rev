@@ -5,42 +5,61 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Http\Resources\BabysitterResource; // <-- Pastikan ini di-import
+use App\Http\Resources\BabysitterResource;
+use App\Models\User;
 
 class FavoriteController extends Controller
 {
     /**
-     * Menambah atau menghapus babysitter dari daftar favorit pengguna.
+     * Toggle favorite status for a babysitter (add/remove).
      */
     public function toggle(Request $request, $babysitterId)
     {
-        $user = Auth::user();
+        // Validasi agar hanya orang tua (User) yang bisa menambahkan favorit
+        if (!($request->user() instanceof User)) {
+            return response()->json(['message' => 'Hanya orang tua yang bisa menambahkan favorit.'], 403);
+        }
+
+        $user = $request->user();
         $result = $user->favorites()->toggle($babysitterId);
 
-        if (count($result['attached']) > 0) {
-            $message = 'Babysitter berhasil ditambahkan ke favorit.';
-        } else {
-            $message = 'Babysitter dihapus dari favorit.';
-        }
+        $message = count($result['attached']) > 0
+            ? 'Babysitter ditambahkan ke favorit.'
+            : 'Babysitter dihapus dari favorit.';
 
         return response()->json(['message' => $message]);
     }
 
     /**
-     * Mengambil daftar DATA LENGKAP babysitter yang difavoritkan oleh pengguna.
-     * VERSI INI SUDAH DIPERBAIKI.
+     * Get the list of favorite babysitters for the authenticated user.
      */
     public function index(Request $request)
     {
-        $user = Auth::user();
-        // Ambil SEMUA DATA babysitter yang terkait melalui relasi 'favorites'
-        $favoriteBabysitters = $user->favorites()->get();
-        // Gunakan BabysitterResource untuk memformat hasilnya
+        // Validasi agar hanya orang tua yang bisa melihat daftar favorit
+        if (!($request->user() instanceof User)) {
+            return response()->json(['message' => 'Hanya orang tua yang bisa melihat favorit.'], 403);
+        }
+
+        // Ambil babysitter favorit beserta data availabilities
+        $favoriteBabysitters = $request->user()
+            ->favorites()
+            ->with('availabilities')
+            ->get();
+
+        // Gunakan Resource agar struktur JSON rapi
         return BabysitterResource::collection($favoriteBabysitters);
     }
 
+    /**
+     * Get only the IDs of favorite babysitters.
+     */
     public function getFavoriteIds(Request $request)
     {
+        // Validasi agar hanya User (orang tua) yang bisa akses
+        if (!($request->user() instanceof User)) {
+            return response()->json([]);
+        }
+
         $favoriteIds = $request->user()->favorites()->pluck('babysitter_id');
 
         return response()->json($favoriteIds);
